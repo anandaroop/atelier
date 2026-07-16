@@ -64,6 +64,17 @@ describe("GET /check", () => {
     expect(mockHeadIndex).not.toHaveBeenCalled();
   });
 
+  it("returns a JSON 500 when the S3 lookup fails unexpectedly", async () => {
+    mockHeadIndex.mockRejectedValue(new Error("Forbidden"));
+    const consoleError = jest.spyOn(console, "error").mockImplementation();
+
+    const res = await request(buildApp()).get("/check?slug=marketing-dashboard");
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: "Failed to check slug status" });
+    consoleError.mockRestore();
+  });
+
   it("rejects a missing slug param with a 4xx", async () => {
     const res = await request(buildApp()).get("/check");
 
