@@ -25,6 +25,7 @@ Simple, simple, simple!
 - All code tested via Jest, and introduced via TDD
 - All code linted via Biome, automatically on file-save and enforced at commit time
 - CI is deferred for now, while we stand up PoC. Run all quality checks before pushing.
+- Exception: an on-demand `@claude`-mention workflow (`.github/workflows/claude-review.yml`) runs a Claude Code review when someone comments `@claude` on a PR. It doesn't run on every push and isn't a substitute for the deferred CI.
 
 ### Commit hygiene
 
