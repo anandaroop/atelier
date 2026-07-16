@@ -19,7 +19,46 @@ The inspirations are:
 
 Simple, simple, simple!
 
-## Docs
+### Code quality
+
+- All code is well-typed
+- All code tested via Jest, and introduced via TDD
+- All code linted via Biome, automatically on file-save and enforced at commit time
+- CI is deferred for now, while we stand up PoC. Run all quality checks before pushing.
+
+### Commit hygiene
+
+- All commit messages follow Conventional Commits
+- Commits are as small and cohesive as reasonably possible. Prefer <500 LOC
+- All agent-authored commits include a trailer e.g.
+  - `Assisted-by: Claude:Sonnet-5`
+  - `Assisted-by: Claude:Opus-4.8`
+
+### Branch and PR hygiene
+
+- All PR titles follow Conventional Commits
+- This repo enforces **linear history, rebase-merge only** on `main`. Before starting new work (and before committing anything already in progress), check whether the current branch is the right base:
+  1. `git branch --show-current` — if it's not `main` and isn't a branch created for the task at hand, stop and check further before committing.
+  2. `git log --oneline main..<branch>` — if this shows commits, the branch has work not yet on `main`. Check whether that work is an **open PR** (`gh pr list --head <branch>` or ask the developer) rather than assuming it's abandoned or already merged.
+  3. If there's an open PR for that branch, don't build new work on top of it unless asked — ask the developer whether to merge that PR first, or branch from `main` instead and let the two land independently.
+  4. Once `main` reflects the intended base (merge the pending PR if needed, then `git checkout main && git pull --ff-only`), create a fresh branch off it for the new work: `git checkout -b <new-branch>`. Untracked files in the working tree survive a branch switch, so any not-yet-committed new files carry over safely — but confirm with `git status` before and after.
+  5. Never `git rebase`, force-push, or otherwise rewrite shared history without explicit developer instruction, given the rebase-merge-only policy.
+
+### Github hygiene
+
+- When opening a PR or Issue on developer's behalf, also use the `Assisted-by:` trailer in the PR description
+- When posting a comment on developer's behalf, use a similar `Posted-by:` trailer in the comment
+- When starting a task on the Github Project, always change its Status to In Progress. After you merge a PR or notice that the developer has merged your PR, confirm the task's status is Done.
+
+### Project board
+
+Work is tracked as GitHub Issues on the [project board](https://github.com/users/anandaroop/projects/7) project, not in local docs.
+
+- Use the `chore` label for non-code tasks, and assign them to your developer
+- Use `epic` field to group related tasks. Epics follow a `00 Name` zero-padded naming convention
+-
+
+## Further reading
 
 - [docs/SUMMARY.md](docs/SUMMARY.md) — executive summary, current status vs.
   target design
