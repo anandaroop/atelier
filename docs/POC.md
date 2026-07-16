@@ -8,6 +8,7 @@ to a folder in S3 — works end to end, before building auth or uploads. See
 (in particular §2 "Serving" and §4 "Caching").
 
 **In scope:**
+
 - A dedicated S3 bucket (`artsy-atelier`) with a `test/` prefix containing a
   static `index.html`.
 - A serving layer that maps `Host` → S3 key, with the same shape-based
@@ -28,15 +29,16 @@ to a folder in S3 — works end to end, before building auth or uploads. See
 - DNS wired so `test.atelier.artsy.dev` actually resolves and serves.
 
 **Explicitly out of scope (deferred to the roadmap below):**
-- **Milestone 1 — Auth**: gate the zone with Cloudflare Access (existing
+
+- **Milestone 1 — Uploads**: the Node upload app (Hokusai/k8s, Vault-delivered
+  write credentials, overwrite/warn UX) per ARCHITECTURE.md §3.
+- **Milestone 2 — Auth**: gate the zone with Cloudflare Access (existing
   Artsy seats/policy, same pattern as `unleash.artsy.net`). Until this lands,
   the PoC site is reachable by anyone with the URL — don't put anything
   sensitive in `test/`. This also means the **CloudFront origin-lock**
   hardening step from ARCHITECTURE.md (blocking the raw `*.cloudfront.net`
   URL from bypassing Access) is deferred too — it only matters once Access is
   actually gating something.
-- **Milestone 2 — Uploads**: the Node upload app (Hokusai/k8s, Vault-delivered
-  write credentials, overwrite/warn UX) per ARCHITECTURE.md §3.
 
 Note on credentials: **Option A needs no long-lived AWS credentials at all**
 — CloudFront's Origin Access Control (OAC) authenticates to S3 using AWS's
@@ -48,6 +50,7 @@ introduces real (Vault-delivered) write credentials.
 ## Prerequisites
 
 Shared:
+
 - AWS CLI configured with credentials that can create S3 buckets (and, for
   Option A, CloudFront/ACM/IAM-policy resources; for Option B, IAM
   users/keys).
@@ -56,9 +59,11 @@ Shared:
   up through DNS assumes it's live.
 
 Option A only:
+
 - `jq`, for pulling IDs/ARNs out of AWS CLI JSON output.
 
 Option B only:
+
 - Node.js + npm (for `wrangler`, the Cloudflare Workers CLI — no global
   install needed, we use `npx`).
 - A Cloudflare account with access to the `artsy.dev` zone, authenticated via
@@ -119,7 +124,7 @@ echo "$OAC_ID"
 
 Same shape-based routing as ARCHITECTURE.md §2 and the Worker below, written
 for the CloudFront Functions runtime. Unlike a Worker, a CloudFront Function
-only rewrites the *request* — it can't fetch anything itself; CloudFront
+only rewrites the _request_ — it can't fetch anything itself; CloudFront
 takes the rewritten `uri` and forwards it to the S3 origin already configured
 on the distribution (Step A4).
 
@@ -297,6 +302,7 @@ curl -sI -H "If-None-Match: $ETAG" https://test.atelier.artsy.dev/ | head -1   #
 ```
 
 Also confirm SPA-fallback and directory-index routing:
+
 - `https://test.atelier.artsy.dev/some/deep/route` (no extension, no trailing
   slash) → same `index.html` (SPA fallback).
 - `https://test.atelier.artsy.dev/some/dir/` (trailing slash) → looks for
@@ -306,7 +312,7 @@ Also confirm SPA-fallback and directory-index routing:
 ### Cleanup
 
 CloudFront requires disabling a distribution and waiting for it to redeploy
-*before* it can be deleted — budget ~15–20 minutes for teardown.
+_before_ it can be deleted — budget ~15–20 minutes for teardown.
 
 ```bash
 ETAG=$(aws cloudfront get-distribution-config --id "$DIST_ID" --query 'ETag' --output text)
@@ -457,7 +463,7 @@ export default {
       "content-type",
       originResponse.headers.get("content-type") ||
         CONTENT_TYPES[ext] ||
-        "application/octet-stream"
+        "application/octet-stream",
     );
     const cacheControl = originResponse.headers.get("cache-control");
     if (cacheControl) headers.set("cache-control", cacheControl);
@@ -529,13 +535,16 @@ reuse this Worker.
 
 ## Roadmap after this PoC
 
-- **Milestone 1 — Auth**: add a Cloudflare Access application over
-  `*.atelier.artsy.dev` (and `atelier.artsy.dev` once the upload app exists),
-  policy = existing Artsy Google Workspace/IdP group — the same pattern
-  already used for `unleash.artsy.net`. No code changes needed either way;
-  Access enforces before the request reaches CloudFront/the Worker. This is
-  also when the CloudFront origin-lock hardening step becomes necessary if
-  Option A was built.
-- **Milestone 2 — Uploads**: build the Node upload app per ARCHITECTURE.md
-  §3, deployed via Hokusai to the existing kOps cluster (`draco`), with
-  write credentials delivered via Vault rather than any static PoC key pair.
+- **Milestone 1 — Uploads**: build the Node upload app per ARCHITECTURE.md
+  §3, deployed via Hokusai to the existing kOps cluster (`draco`). Ships with
+  a static, scoped IAM key rather than Vault-delivered credentials, and with
+  `/upload` open (no auth yet) — both hardened in Milestone 2. See
+  [PLAN.md](PLAN.md) for the detailed shape and task list.
+- **Milestone 2 — Auth**: add a Cloudflare Access application over
+  `*.atelier.artsy.dev` (and `atelier.artsy.dev`, now that the upload app
+  exists), policy = existing Artsy Google Workspace/IdP group — the same
+  pattern already used for `unleash.artsy.net`. No code changes needed
+  either way; Access enforces before the request reaches CloudFront/the
+  Worker. This is also when the CloudFront origin-lock hardening step
+  becomes necessary if Option A was built, and when the static IAM key gets
+  swapped for Vault-delivered credentials.
