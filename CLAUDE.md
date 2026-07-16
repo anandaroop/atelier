@@ -57,7 +57,10 @@ Work is tracked as GitHub Issues on the [project board](https://github.com/users
 
 - Use the `chore` label for non-code tasks, and assign them to your developer
 - Use `epic` field to group related tasks. Epics follow a `00 Name` zero-padded naming convention
--
+
+### Other notes
+
+- Note that you cannot run `aws` commands yourself due to role-based access and OTPs. Always ask the developer to run `aws` commands for you.
 
 ## Further reading
 
