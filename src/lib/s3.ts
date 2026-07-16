@@ -80,18 +80,30 @@ export async function deletePrefix(
   slug: string,
 ): Promise<number> {
   const keys = await listPrefix(client, bucket, slug);
+  let deletedCount = 0;
+  const failedKeys: string[] = [];
 
   for (let i = 0; i < keys.length; i += DELETE_BATCH_SIZE) {
     const batch = keys.slice(i, i + DELETE_BATCH_SIZE);
-    await client.send(
+    const result = await client.send(
       new DeleteObjectsCommand({
         Bucket: bucket,
         Delete: { Objects: batch.map((Key) => ({ Key })) },
       }),
     );
+    deletedCount += result.Deleted?.length ?? 0;
+    for (const error of result.Errors ?? []) {
+      if (error.Key) {
+        failedKeys.push(error.Key);
+      }
+    }
   }
 
-  return keys.length;
+  if (failedKeys.length > 0) {
+    throw new Error(`Failed to delete ${failedKeys.length} object(s): ${failedKeys.join(", ")}`);
+  }
+
+  return deletedCount;
 }
 
 export async function putFile(
