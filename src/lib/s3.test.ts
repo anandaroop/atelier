@@ -93,7 +93,9 @@ describe("deletePrefix", () => {
       Contents: [{ Key: "old-site/index.html" }, { Key: "old-site/app.js" }],
       IsTruncated: false,
     });
-    s3Mock.on(DeleteObjectsCommand).resolves({});
+    s3Mock
+      .on(DeleteObjectsCommand)
+      .callsFake((input) => ({ Deleted: input.Delete?.Objects ?? [] }));
 
     const deletedCount = await deletePrefix(client, bucket, "old-site");
 
@@ -111,7 +113,9 @@ describe("deletePrefix", () => {
       Key: `big-site/file-${i}.html`,
     }));
     s3Mock.on(ListObjectsV2Command).resolves({ Contents: keys, IsTruncated: false });
-    s3Mock.on(DeleteObjectsCommand).resolves({});
+    s3Mock
+      .on(DeleteObjectsCommand)
+      .callsFake((input) => ({ Deleted: input.Delete?.Objects ?? [] }));
 
     const deletedCount = await deletePrefix(client, bucket, "big-site");
 
@@ -129,6 +133,19 @@ describe("deletePrefix", () => {
 
     expect(deletedCount).toBe(0);
     expect(s3Mock.commandCalls(DeleteObjectsCommand)).toHaveLength(0);
+  });
+
+  it("throws and names the keys when S3 partially fails a delete", async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      Contents: [{ Key: "old-site/index.html" }, { Key: "old-site/app.js" }],
+      IsTruncated: false,
+    });
+    s3Mock.on(DeleteObjectsCommand).resolves({
+      Deleted: [{ Key: "old-site/index.html" }],
+      Errors: [{ Key: "old-site/app.js", Code: "AccessDenied", Message: "Access Denied" }],
+    });
+
+    await expect(deletePrefix(client, bucket, "old-site")).rejects.toThrow(/old-site\/app\.js/);
   });
 });
 
