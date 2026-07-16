@@ -9,13 +9,21 @@ within seconds. Access to *everything* — the uploader and every hosted site �
 is gated to verified Artsy users; once in, anyone may overwrite any slug after
 confirming intent.
 
-This document fixes the v1 architecture and stack. There is no code yet; this
-is the greenfield design we build from. Decisions below reflect the sketch in
-`docs/sketch.png` plus these confirmed choices: **Cloudflare Access** for auth,
-**CloudFront + S3** (serverless serving, no pass-through server) for delivery,
-**Node on the existing Kubernetes cluster via Hokusai** for the upload app,
-the dedicated **`artsy.dev`** domain (isolated from `artsy.net` production
-cookies), and **SPA + MPA** support in v1.
+This document fixes the v1 architecture and stack — the target design we build
+toward. Decisions below reflect the sketch in `docs/sketch.png` plus these
+confirmed choices: **Cloudflare Access** for auth, **CloudFront + S3**
+(serverless serving, no pass-through server) for delivery, **Node on the
+existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
+**`artsy.dev`** domain (isolated from `artsy.net` production cookies), and
+**SPA + MPA** support in v1.
+
+**Deviation from this document, as actually built:** the nested
+`*.atelier.artsy.dev` wildcard below hit a Cloudflare free-tier TLS limit
+during the PoC and was replaced with the flat `*.artsy.dev` — see
+[SETUP.md](SETUP.md) ("Abandoned detour") and [SUMMARY.md](SUMMARY.md#open-question-return-to-the-nested-wildcard-design)
+for the plan to return to the nested design once the cert issue is resolved.
+Everything else on this page (CloudFront+S3, the upload app, Cloudflare
+Access) still reflects the live plan.
 
 ## Architecture
 

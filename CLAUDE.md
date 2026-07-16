@@ -19,9 +19,18 @@ The inspirations are:
 
 Simple, simple, simple!
 
-## Initial architecture
+## Docs
 
-- See [docs/SUMMARY.md](docs/SUMMARY.md) for an overview
-- See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details
-
-(We arrived here after much back-and-forth, summarized in docs/CONVERSATION.md)here
+- [docs/SUMMARY.md](docs/SUMMARY.md) — executive summary, current status vs.
+  target design
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the target v1 architecture
+  and stack
+- [docs/POC.md](docs/POC.md) / [docs/SETUP.md](docs/SETUP.md) /
+  [docs/TEARDOWN.md](docs/TEARDOWN.md) — the serving-layer PoC: what to build,
+  what was actually built (with deviations), and how to tear it down
+- [docs/PLAN.md](docs/PLAN.md) — shape & architecture for the current
+  milestone (the upload app)
+- Task tracking lives in the
+  [Atelier GitHub project](https://github.com/users/anandaroop/projects/7),
+  not in these docs
+- docs/CONVERSATION.md — how we arrived at the initial design, for background
