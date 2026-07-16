@@ -45,11 +45,14 @@ Nothing in the flat scheme blocks this.
 
 ## Repo layout
 
-Follows the proposed layout in [ARCHITECTURE.md](ARCHITECTURE.md). This milestone
-creates `app/`:
+Diverges from the `app/`-nested layout originally proposed in
+[ARCHITECTURE.md](ARCHITECTURE.md): the app lives at the **repo root**, matching
+the convention used by other Artsy service repos (force, metaphysics, gravity),
+where `hokusai/`/`infra/` sit as siblings of `src/` rather than the app being
+nested a level deeper. Decided during issue #2 scaffolding.
 
 ```
-app/
+atelier/
   src/
     index.ts          # Express bootstrap, config load, route wiring, listen
     config.ts         # env parsing/validation (bucket, region, dist id, caps, domain)
@@ -64,12 +67,15 @@ app/
       mime.ts         # content-type resolution (mime-types wrapper)
   public/
     index.html        # drop-zone UI (slug field + dropzone)
-    app.js            # vanilla client: /check + /upload via fetch, progress, warn
+    app.js             # vanilla client: /check + /upload via fetch, progress, warn
     styles.css
-  package.json  tsconfig.json  .env.example  Dockerfile  .dockerignore
+  package.json  tsconfig.json  biome.json  jest.config.js  .env.example
+  Dockerfile  .dockerignore                                  # later issues
+  hokusai/  infra/                                            # later issues, sibling dirs
 ```
 
-Package manager: **yarn** (Artsy convention). Node 20 LTS.
+Package manager: **Yarn 4 (Berry)**, activated via corepack, `nodeLinker: node-modules`
+(Artsy convention). Node 20 LTS.
 
 ## App architecture
 
@@ -123,8 +129,8 @@ uploader/time comes from S3 object metadata (per ARCHITECTURE.md §3).
   `<slug>` prefixes) + `s3:GetObject`/`PutObject`/`DeleteObject` on
   `arn:aws:s3:::artsy-atelier/*`, plus `cloudfront:CreateInvalidation` on the
   distribution. Least-privilege, this bucket + this distribution only.
-- **Build/run scripts:** `dev` (ts-node-dev / nodemon), `build` (`tsc`),
-  `start` (`node dist/index.js`), `typecheck`, `lint`.
+- **Build/run scripts:** `dev` (`tsx watch`), `build` (`tsc`),
+  `start` (`node dist/index.js`), `typecheck`, `lint` (Biome), `test` (Jest via ts-jest).
 
 ## Explicitly out of scope (this milestone)
 
