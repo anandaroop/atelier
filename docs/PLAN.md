@@ -136,33 +136,11 @@ uploader/time comes from S3 object metadata (per ARCHITECTURE.md §3).
 - The ETag-through-Cloudflare open item (SETUP.md) — serving-layer issue, not
   this app.
 
-## Task list (ordered, local-first)
+## Task tracking
 
-1. **Scaffold `app/`** — `package.json`, `tsconfig.json`, Express bootstrap,
-   `config.ts` with env validation, `.env.example`, yarn scripts. App boots and
-   serves a placeholder `/`.
-2. **`lib/slug.ts`** — slug regex validation + reserved-name check (+ small unit
-   test).
-3. **`lib/s3.ts`** — `headIndex(slug)` (metadata for /check + overwrite guard),
-   `listPrefix`, `deletePrefix`, `putFile`. Wire against real bucket.
-4. **`GET /check`** — end-to-end against S3 (returns exists + uploader/time).
-5. **`lib/zip.ts` + `lib/mime.ts`** — streaming unzip with zip-slip guard, size
-   cap, content-type resolution (+ unit tests for slip/oversize/valid).
-6. **`lib/cloudfront.ts`** — `createInvalidation("/<slug>/*")`.
-7. **`POST /upload`** — compose validate → overwrite-guard → unzip → replace →
-   invalidate; multipart via busboy/multer.
-8. **UI** — `public/index.html` + `app.js` + `styles.css`: slug field, drop zone,
-   `/check` on blur (warn-before-overwrite), `/upload` with progress + result
-   link to `https://<slug>.artsy.dev`.
-9. **IAM key + local run** — create the scoped IAM user/key (out of band),
-   `.env` locally, full manual loop: drop a zip → live site.
-10. **Dockerfile + Hokusai/k8s manifests** — containerize (multi-stage: build TS,
-    run `dist/`), add `hokusai/` config + k8s deployment/ingress; deploy to the
-    `draco` prod cluster behind shared nginx ingress. (Deploy = final step;
-    may need Artsy infra coordination for the ingress host + secret injection.)
-11. **Docs** — update the "Roadmap after this PoC" section of [POC.md](POC.md)
-    (still lists the old Auth-first order) and add a short `UPLOAD.md` mirroring
-    what SETUP.md did for serving.
+Tasks are tracked as issues in the [Atelier GitHub project](https://github.com/users/anandaroop/projects/7),
+organized under epics **01 Uploads — app** and **02 Uploads — deploy**. That
+project (not this file) is the source of truth for what's done and what's next.
 
 ## Verification (end-to-end)
 
