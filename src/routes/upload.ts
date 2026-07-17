@@ -1,0 +1,168 @@
+import type { CloudFrontClient } from "@aws-sdk/client-cloudfront";
+import type { S3Client } from "@aws-sdk/client-s3";
+import Busboy from "busboy";
+import type { Request } from "express";
+import { Router } from "express";
+import { invalidateSlug } from "../lib/cloudfront";
+import { resolveContentType } from "../lib/mime";
+import { deletePrefix, headIndex, putFile } from "../lib/s3";
+import { validateSlug } from "../lib/slug";
+import { extractZip, type ZipEntry, ZipValidationError } from "../lib/zip";
+
+export interface UploadRouterDeps {
+  s3Client: S3Client;
+  cloudFrontClient: CloudFrontClient;
+  bucket: string;
+  distributionId: string;
+  publicDomain: string;
+  maxUploadBytes: number;
+}
+
+interface ParsedUpload {
+  slug: string;
+  confirm: boolean;
+  uploadedBy?: string;
+  entries?: ZipEntry[];
+}
+
+const CONFIRM_TRUE_VALUES = new Set(["true", "1", "on"]);
+
+/**
+ * Streams the multipart request into its form fields plus the zip's
+ * validated entries, without ever buffering the whole raw archive in
+ * memory (busboy hands `extractZip` the file part as it arrives).
+ */
+function parseUpload(req: Request, maxUploadBytes: number): Promise<ParsedUpload> {
+  return new Promise((resolve, reject) => {
+    const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: maxUploadBytes } });
+
+    let slug = "";
+    let confirm = false;
+    let uploadedBy: string | undefined;
+    let entriesPromise: Promise<ZipEntry[]> | undefined;
+    let fileStream: (NodeJS.ReadableStream & { truncated?: boolean }) | undefined;
+    let settled = false;
+
+    const fail = (err: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(err);
+    };
+
+    bb.on("field", (name, value) => {
+      if (name === "slug") {
+        slug = value;
+      } else if (name === "confirm") {
+        confirm = CONFIRM_TRUE_VALUES.has(value.toLowerCase());
+      } else if (name === "uploadedBy") {
+        uploadedBy = value;
+      }
+    });
+
+    bb.on("file", (name, stream) => {
+      if (name !== "zip" || entriesPromise) {
+        stream.resume();
+        return;
+      }
+      fileStream = stream;
+      entriesPromise = extractZip(stream, maxUploadBytes);
+    });
+
+    bb.on("error", fail);
+    req.on("error", fail);
+
+    bb.on("close", async () => {
+      try {
+        const entries = entriesPromise ? await entriesPromise : undefined;
+        if (fileStream?.truncated) {
+          throw new ZipValidationError(`Uploaded zip exceeds the ${maxUploadBytes}-byte limit`);
+        }
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve({
+          slug,
+          confirm,
+          ...(uploadedBy !== undefined && { uploadedBy }),
+          ...(entries !== undefined && { entries }),
+        });
+      } catch (err) {
+        fail(err as Error);
+      }
+    });
+
+    req.pipe(bb);
+  });
+}
+
+export function createUploadRouter(deps: UploadRouterDeps): Router {
+  const { s3Client, cloudFrontClient, bucket, distributionId, publicDomain, maxUploadBytes } = deps;
+  const router = Router();
+
+  router.post("/upload", async (req, res, next) => {
+    try {
+      const parsed = await parseUpload(req, maxUploadBytes);
+
+      const validation = validateSlug(parsed.slug);
+      if (!validation.valid) {
+        res.status(400).json({ error: validation.error });
+        return;
+      }
+
+      if (!parsed.entries) {
+        res.status(400).json({ error: "Missing zip file" });
+        return;
+      }
+
+      const existing = await headIndex(s3Client, bucket, parsed.slug);
+      if (existing.exists && !parsed.confirm) {
+        res.status(409).json({
+          error: `Slug "${parsed.slug}" already exists`,
+          ...(existing.uploadedBy !== undefined && { uploadedBy: existing.uploadedBy }),
+          ...(existing.uploadedAt !== undefined && { uploadedAt: existing.uploadedAt }),
+        });
+        return;
+      }
+
+      const uploadedBy =
+        req.get("Cf-Access-Authenticated-User-Email") || parsed.uploadedBy || "anonymous";
+
+      await deletePrefix(s3Client, bucket, parsed.slug);
+
+      for (const entry of parsed.entries) {
+        await putFile(
+          s3Client,
+          bucket,
+          parsed.slug,
+          entry.path,
+          entry.content,
+          resolveContentType(entry.path),
+          uploadedBy,
+        );
+      }
+
+      try {
+        await invalidateSlug(cloudFrontClient, distributionId, parsed.slug);
+      } catch (err) {
+        console.error(`CloudFront invalidation failed for slug "${parsed.slug}":`, err);
+      }
+
+      res.json({
+        ok: true,
+        url: `https://${parsed.slug}.${publicDomain}`,
+        fileCount: parsed.entries.length,
+      });
+    } catch (err) {
+      if (err instanceof ZipValidationError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      next(err);
+    }
+  });
+
+  return router;
+}
