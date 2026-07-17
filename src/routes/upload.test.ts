@@ -132,6 +132,43 @@ describe("POST /upload", () => {
     );
   });
 
+  it("strips a Finder-compressed wrapping folder and its __MACOSX junk before writing to S3", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([
+        { path: "test-upload/index.html", content: Buffer.from("<html></html>") },
+        { path: "__MACOSX/test-upload/._index.html", content: Buffer.from("junk") },
+      ]),
+    );
+
+    const res = await postUpload({ slug: "test-upload" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.fileCount).toBe(1);
+    expect(mockPutFile).toHaveBeenCalledTimes(1);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "test-upload",
+      "index.html",
+      Buffer.from("<html></html>"),
+      "text/html",
+      "anonymous",
+    );
+  });
+
+  it("rejects a zip that contains nothing but macOS junk", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([{ path: "__MACOSX/._index.html", content: Buffer.from("junk") }]),
+    );
+
+    const res = await postUpload({ slug: "marketing-dashboard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no usable files/i);
+    expect(mockDeletePrefix).not.toHaveBeenCalled();
+    expect(mockPutFile).not.toHaveBeenCalled();
+  });
+
   it("rejects an existing slug without confirm, surfacing the prior uploader/time", async () => {
     mockHeadIndex.mockResolvedValue({
       exists: true,

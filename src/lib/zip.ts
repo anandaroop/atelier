@@ -96,3 +96,46 @@ export function extractZip(source: Readable, maxTotalBytes: number): Promise<Zip
     zip.on("error", fail);
   });
 }
+
+const MACOS_JUNK_PATTERN = /(^|\/)(__MACOSX\/|\.DS_Store$|\._[^/]+$)/;
+
+/**
+ * Drops macOS Finder zip artifacts (the `__MACOSX/` sidecar directory,
+ * `.DS_Store`, and `._*` AppleDouble resource-fork files) that ride along
+ * whenever someone zips a folder via Finder's "Compress" action.
+ */
+export function stripMacosJunk(entries: ZipEntry[]): ZipEntry[] {
+  return entries.filter((entry) => !MACOS_JUNK_PATTERN.test(entry.path));
+}
+
+/**
+ * Collapses a single common wrapping directory (e.g. zipping a folder
+ * itself, rather than its contents, produces every entry nested under
+ * `<folder-name>/`) so `index.html` lands at the site root. Leaves entries
+ * untouched unless every one of them shares the same top-level directory.
+ */
+export function stripCommonRoot(entries: ZipEntry[]): ZipEntry[] {
+  const first = entries[0];
+  if (!first) {
+    return entries;
+  }
+
+  const slashIndex = first.path.indexOf("/");
+  if (slashIndex === -1) {
+    return entries;
+  }
+
+  const prefix = first.path.slice(0, slashIndex + 1);
+  if (!entries.every((entry) => entry.path.startsWith(prefix))) {
+    return entries;
+  }
+
+  return entries
+    .map((entry) => ({ ...entry, path: entry.path.slice(prefix.length) }))
+    .filter((entry) => entry.path.length > 0);
+}
+
+/** Prepares raw `extractZip` output for upload: strip macOS junk, then a common wrapping folder. */
+export function normalizeZipEntries(entries: ZipEntry[]): ZipEntry[] {
+  return stripCommonRoot(stripMacosJunk(entries));
+}
