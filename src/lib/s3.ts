@@ -114,6 +114,7 @@ export async function putFile(
   body: NonNullable<PutObjectCommandInput["Body"]>,
   contentType: string,
   uploadedBy: string,
+  extraMetadata?: Record<string, string>,
 ): Promise<void> {
   await client.send(
     new PutObjectCommand({
@@ -125,6 +126,7 @@ export async function putFile(
       Metadata: {
         "uploaded-by": uploadedBy,
         "uploaded-at": new Date().toISOString(),
+        ...extraMetadata,
       },
     }),
   );
