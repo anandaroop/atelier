@@ -24,13 +24,13 @@
           />
           <span class="slug-suffix">.artsy.dev</span>
         </div>
-        <p id="slug-msg" class="msg" hidden></p>
+        <p id="slug-msg" class="msg" aria-live="polite" hidden></p>
 
         <button id="dropzone" class="dropzone" type="button" aria-label="Choose a zip file">
           <span>Drag a zip here, or click to choose a file</span>
           <span id="file-name" class="file-name" hidden></span>
-          <input id="file-input" type="file" accept=".zip,application/zip" hidden />
         </button>
+        <input id="file-input" type="file" accept=".zip,application/zip" hidden />
 
         <div id="overwrite" class="overwrite" hidden>
           <p id="overwrite-msg"></p>
@@ -41,12 +41,12 @@
         </div>
 
         <progress id="progress" value="0" max="100" hidden></progress>
-        <p id="status" class="msg" hidden></p>
+        <p id="status" class="msg" aria-live="polite" hidden></p>
 
         <button id="submit" type="submit">Upload</button>
       </form>
 
-      <div id="result" class="result"></div>
+      <div id="result" class="result" aria-live="polite"></div>
     </main>
 
     <script src="/app.js" defer></script>
