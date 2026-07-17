@@ -16,7 +16,7 @@ Read the Github Project to understand where we are in the development cycle.
 
 Gather just enough information to know:
 
-- Which epics have been completed? (Note that Epic 01 was never created in the Github Project)
+- Which epics have been completed?
 
 - What is the current epic?
   - In the current epic, which tasks have been completed?
