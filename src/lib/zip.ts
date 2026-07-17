@@ -10,11 +10,17 @@ export interface ZipEntry {
 export class ZipValidationError extends Error {}
 
 function normalizeEntryPath(rawPath: string): string {
-  if (path.posix.isAbsolute(rawPath)) {
+  if (rawPath.includes("\0")) {
+    throw new ZipValidationError(`Zip entry path contains a null byte: "${rawPath}"`);
+  }
+
+  const posixPath = rawPath.replace(/\\/g, "/");
+
+  if (path.posix.isAbsolute(posixPath)) {
     throw new ZipValidationError(`Zip entry has an absolute path: "${rawPath}"`);
   }
 
-  const normalized = path.posix.normalize(rawPath);
+  const normalized = path.posix.normalize(posixPath);
   if (normalized === ".." || normalized.startsWith("../")) {
     throw new ZipValidationError(`Zip entry escapes the archive root: "${rawPath}"`);
   }
@@ -38,6 +44,8 @@ export function extractZip(source: Readable, maxTotalBytes: number): Promise<Zip
       zip.destroy();
       reject(err);
     };
+
+    source.on("error", fail);
 
     zip.on("entry", (entry: unzipper.Entry) => {
       if (settled) {
