@@ -15,13 +15,8 @@ export function createCheckRouter(client: S3Client, bucket: string): Router {
       return;
     }
 
-    try {
-      const result = await headIndex(client, bucket, slug);
-      res.json(result);
-    } catch (err) {
-      console.error(`GET /check failed for slug "${slug}":`, err);
-      res.status(500).json({ error: "Failed to check slug status" });
-    }
+    const result = await headIndex(client, bucket, slug);
+    res.json(result);
   });
 
   return router;
