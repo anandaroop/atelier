@@ -116,6 +116,7 @@ describe("POST /upload", () => {
       ZIP_ENTRIES[0]?.content,
       "text/html",
       "anonymous",
+      undefined,
     );
     expect(mockPutFile).toHaveBeenCalledWith(
       s3Client,
@@ -125,6 +126,7 @@ describe("POST /upload", () => {
       ZIP_ENTRIES[1]?.content,
       "text/javascript",
       "anonymous",
+      undefined,
     );
     expect(mockInvalidateSlug).toHaveBeenCalledWith(
       cloudFrontClient,
@@ -154,7 +156,60 @@ describe("POST /upload", () => {
       Buffer.from("<html></html>"),
       "text/html",
       "anonymous",
+      undefined,
     );
+  });
+
+  it("aliases a sole root .html file as index.html and notes it in the response", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([
+        { path: "art-history-quiz.html", content: Buffer.from("<html>quiz</html>") },
+        { path: "assets/quiz.css", content: Buffer.from("body {}") },
+      ]),
+    );
+
+    const res = await postUpload({ slug: "art-quiz" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.fileCount).toBe(3);
+    expect(res.body.notes).toEqual([
+      "Used art-history-quiz.html as the homepage since no index.html was found",
+    ]);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "art-quiz",
+      "art-history-quiz.html",
+      Buffer.from("<html>quiz</html>"),
+      "text/html",
+      "anonymous",
+      undefined,
+    );
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "art-quiz",
+      "index.html",
+      Buffer.from("<html>quiz</html>"),
+      "text/html",
+      "anonymous",
+      { "aliased-from": "art-history-quiz.html" },
+    );
+  });
+
+  it("rejects a zip with multiple root-level .html files and no index.html", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([
+        { path: "page1.html", content: Buffer.from("a") },
+        { path: "page2.html", content: Buffer.from("b") },
+      ]),
+    );
+
+    const res = await postUpload({ slug: "marketing-dashboard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/index\.html/i);
+    expect(mockPutFile).not.toHaveBeenCalled();
   });
 
   it("rejects a zip that contains nothing but macOS junk", async () => {
@@ -307,6 +362,7 @@ describe("POST /upload", () => {
       expect.anything(),
       expect.anything(),
       "roop@artsymail.com",
+      undefined,
     );
   });
 
@@ -327,6 +383,7 @@ describe("POST /upload", () => {
       expect.anything(),
       expect.anything(),
       "access@artsymail.com",
+      undefined,
     );
   });
 });

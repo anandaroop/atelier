@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import {
   extractZip,
   normalizeZipEntries,
+  promoteSoleRootHtmlToIndex,
   stripCommonRoot,
   stripMacosJunk,
   ZipValidationError,
@@ -252,6 +253,53 @@ describe("stripCommonRoot", () => {
   });
 });
 
+describe("promoteSoleRootHtmlToIndex", () => {
+  it("aliases a sole root .html file as index.html when none exists", () => {
+    const entries = [
+      { path: "art-history-quiz.html", content: Buffer.from("<html>quiz</html>") },
+      { path: "assets/quiz.css", content: Buffer.from("body {}") },
+    ];
+
+    const result = promoteSoleRootHtmlToIndex(entries);
+
+    expect(result.aliasedIndexFrom).toBe("art-history-quiz.html");
+    expect(result.entries).toEqual([
+      ...entries,
+      { path: "index.html", content: Buffer.from("<html>quiz</html>") },
+    ]);
+  });
+
+  it("leaves entries untouched when index.html already exists", () => {
+    const entries = [
+      { path: "index.html", content: Buffer.from("a") },
+      { path: "extra.html", content: Buffer.from("b") },
+    ];
+
+    const result = promoteSoleRootHtmlToIndex(entries);
+
+    expect(result).toEqual({ entries });
+  });
+
+  it("does not guess when there's more than one root-level .html file", () => {
+    const entries = [
+      { path: "page1.html", content: Buffer.from("a") },
+      { path: "page2.html", content: Buffer.from("b") },
+    ];
+
+    const result = promoteSoleRootHtmlToIndex(entries);
+
+    expect(result).toEqual({ entries });
+  });
+
+  it("does not promote a nested .html file — only root-level counts", () => {
+    const entries = [{ path: "pages/quiz.html", content: Buffer.from("a") }];
+
+    const result = promoteSoleRootHtmlToIndex(entries);
+
+    expect(result).toEqual({ entries });
+  });
+});
+
 describe("normalizeZipEntries", () => {
   it("strips macOS junk and a wrapping directory together, matching a Finder-compressed folder", () => {
     // extractZip already omits directory entries themselves (e.g. "test-upload/"),
@@ -263,6 +311,24 @@ describe("normalizeZipEntries", () => {
 
     const result = normalizeZipEntries(entries);
 
-    expect(result).toEqual([{ path: "index.html", content: Buffer.from("<html></html>") }]);
+    expect(result.entries).toEqual([{ path: "index.html", content: Buffer.from("<html></html>") }]);
+    expect(result.aliasedIndexFrom).toBeUndefined();
+  });
+
+  it("composes common-root stripping with sole-html aliasing for an LLM-generated single page", () => {
+    // A Finder-compressed folder containing exactly one descriptively-named
+    // HTML file — the exact shape LLM coding assistants tend to produce.
+    const entries = [
+      { path: "quiz-site/art-history-quiz.html", content: Buffer.from("<html>quiz</html>") },
+      { path: "__MACOSX/quiz-site/._art-history-quiz.html", content: Buffer.from("junk") },
+    ];
+
+    const result = normalizeZipEntries(entries);
+
+    expect(result.aliasedIndexFrom).toBe("art-history-quiz.html");
+    expect(result.entries).toEqual([
+      { path: "art-history-quiz.html", content: Buffer.from("<html>quiz</html>") },
+      { path: "index.html", content: Buffer.from("<html>quiz</html>") },
+    ]);
   });
 });

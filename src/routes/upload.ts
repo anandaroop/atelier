@@ -132,17 +132,22 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         return;
       }
 
-      const entries = normalizeZipEntries(parsed.entries);
+      const { entries, aliasedIndexFrom } = normalizeZipEntries(parsed.entries);
       if (entries.length === 0) {
         res.status(400).json({ error: "Zip contains no usable files" });
         return;
       }
 
-      // Both headIndex and the serving layer key off <slug>/index.html — a
-      // zip missing it would publish a subdomain that 404s despite this
-      // endpoint reporting success, so reject before touching S3.
+      // Both headIndex and the serving layer key off <slug>/index.html.
+      // normalizeZipEntries already aliases a sole root .html file as
+      // index.html (common for LLM-generated single-page output), so this
+      // only rejects the genuinely ambiguous cases: several root .html files
+      // with no index.html among them, or none at all.
       if (!entries.some((entry) => entry.path === "index.html")) {
-        res.status(400).json({ error: "Zip must contain an index.html at the root" });
+        res.status(400).json({
+          error:
+            "Zip must contain an index.html at the root, or exactly one root-level .html file to use as one",
+        });
         return;
       }
 
@@ -170,6 +175,7 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
       await deletePrefix(s3Client, bucket, parsed.slug);
 
       for (const entry of entries) {
+        const isAliasedIndex = entry.path === "index.html" && aliasedIndexFrom !== undefined;
         await putFile(
           s3Client,
           bucket,
@@ -178,6 +184,7 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
           entry.content,
           resolveContentType(entry.path),
           uploadedBy,
+          isAliasedIndex ? { "aliased-from": aliasedIndexFrom } : undefined,
         );
       }
 
@@ -191,6 +198,9 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         ok: true,
         url: `https://${parsed.slug}.${publicDomain}`,
         fileCount: entries.length,
+        ...(aliasedIndexFrom !== undefined && {
+          notes: [`Used ${aliasedIndexFrom} as the homepage since no index.html was found`],
+        }),
       });
     } catch (err) {
       if (err instanceof ZipValidationError) {

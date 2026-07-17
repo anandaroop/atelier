@@ -135,7 +135,39 @@ export function stripCommonRoot(entries: ZipEntry[]): ZipEntry[] {
     .filter((entry) => entry.path.length > 0);
 }
 
-/** Prepares raw `extractZip` output for upload: strip macOS junk, then a common wrapping folder. */
-export function normalizeZipEntries(entries: ZipEntry[]): ZipEntry[] {
-  return stripCommonRoot(stripMacosJunk(entries));
+const ROOT_HTML_PATTERN = /^[^/]+\.html?$/i;
+
+export interface PromoteIndexResult {
+  entries: ZipEntry[];
+  aliasedIndexFrom?: string;
+}
+
+/**
+ * When a zip has no root `index.html` but exactly one root-level `.html`
+ * file, aliases that file's content as `index.html` too — LLM-generated
+ * single-page output is rarely named `index.html` (e.g. `art-history-quiz.html`).
+ * Adds a second copy rather than renaming, so the original filename (and any
+ * links to it) keeps working. Left alone when there's more than one root
+ * `.html` file, since there's no way to guess the intended entry point.
+ */
+export function promoteSoleRootHtmlToIndex(entries: ZipEntry[]): PromoteIndexResult {
+  if (entries.some((entry) => entry.path === "index.html")) {
+    return { entries };
+  }
+
+  const rootHtmlEntries = entries.filter((entry) => ROOT_HTML_PATTERN.test(entry.path));
+  const sole = rootHtmlEntries.length === 1 ? rootHtmlEntries[0] : undefined;
+  if (!sole) {
+    return { entries };
+  }
+
+  return {
+    entries: [...entries, { path: "index.html", content: sole.content }],
+    aliasedIndexFrom: sole.path,
+  };
+}
+
+/** Prepares raw `extractZip` output for upload: strip macOS junk, collapse a common wrapping folder, then alias a sole root .html file as index.html if needed. */
+export function normalizeZipEntries(entries: ZipEntry[]): PromoteIndexResult {
+  return promoteSoleRootHtmlToIndex(stripCommonRoot(stripMacosJunk(entries)));
 }
