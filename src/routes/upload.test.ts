@@ -54,7 +54,7 @@ function rejectingExtractZip(err: Error) {
   };
 }
 
-function buildApp() {
+function buildApp(overrides: { maxUploadBytes?: number } = {}) {
   const app = express();
   app.use(
     createUploadRouter({
@@ -64,6 +64,7 @@ function buildApp() {
       distributionId,
       publicDomain,
       maxUploadBytes,
+      ...overrides,
     }),
   );
   app.use(errorHandler);
@@ -169,6 +170,20 @@ describe("POST /upload", () => {
     expect(mockPutFile).not.toHaveBeenCalled();
   });
 
+  it("rejects a zip with no root index.html", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([{ path: "assets/app.js", content: Buffer.from("console.log(1)") }]),
+    );
+
+    const res = await postUpload({ slug: "marketing-dashboard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/index\.html/i);
+    expect(mockHeadIndex).not.toHaveBeenCalled();
+    expect(mockDeletePrefix).not.toHaveBeenCalled();
+    expect(mockPutFile).not.toHaveBeenCalled();
+  });
+
   it("rejects an existing slug without confirm, surfacing the prior uploader/time", async () => {
     mockHeadIndex.mockResolvedValue({
       exists: true,
@@ -245,6 +260,26 @@ describe("POST /upload", () => {
     expect(res.body.error).toMatch(/escapes the archive root/i);
     expect(mockDeletePrefix).not.toHaveBeenCalled();
     expect(mockPutFile).not.toHaveBeenCalled();
+  });
+
+  it("surfaces busboy's fileSize truncation as a 400, not a 500", async () => {
+    // busboy truncates the file part in place rather than erroring it once
+    // its own fileSize limit is hit; the truncated bytes then reach
+    // extractZip as a corrupt archive. Simulate that: a generic parse error
+    // (not ZipValidationError) from extractZip on a stream that busboy has
+    // marked truncated.
+    mockExtractZip.mockImplementation((stream) => {
+      stream.resume();
+      return Promise.reject(new Error("invalid signature (readSlice)"));
+    });
+
+    const res = await request(buildApp({ maxUploadBytes: 5 }))
+      .post("/upload")
+      .field("slug", "marketing-dashboard")
+      .attach("zip", Buffer.from("PK\x03\x04 this archive is well over five bytes"), "site.zip");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/byte limit/i);
   });
 
   it("still returns 200 when CloudFront invalidation fails, logging the error", async () => {
