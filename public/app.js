@@ -11,6 +11,7 @@
 
   const fileInput = document.getElementById("file-input");
   const statusEl = document.getElementById("status");
+  const browseTrigger = document.getElementById("browse-trigger");
 
   let uploading = false;
   let pendingFormData = null;
@@ -216,6 +217,14 @@
       return;
     }
     fileInput.click();
+  });
+
+  // Keyboard/screen-reader entry point — drag-and-drop and click-anywhere
+  // are both pointer-only. A real <button>, so Enter/Space already work.
+  browseTrigger.addEventListener("click", () => {
+    if (!uploading) {
+      fileInput.click();
+    }
   });
 
   statusEl.addEventListener("click", (event) => {

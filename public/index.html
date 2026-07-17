@@ -22,6 +22,15 @@
     <link rel="stylesheet" href="https://webfonts.artsy.net/ll-unica77.css" />
   </head>
   <body>
+    <!--
+      Drag-and-drop and click-anywhere are pointer-only. This button is the
+      keyboard/screen-reader path to the same file picker — visually hidden
+      until focused (classic skip-link pattern) so it doesn't disturb the
+      hero for mouse users, but it's still reachable via Tab and announced
+      by assistive tech regardless of visibility.
+    -->
+    <button id="browse-trigger" class="browse-trigger" type="button">Choose a zip file</button>
+
     <div class="branding">
       <div class="title">The Atelier</div>
       <div class="tagline">A place to hang your html sketches. Drop a zip, get a live site.</div>
