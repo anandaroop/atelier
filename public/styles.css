@@ -22,6 +22,27 @@ body.drag-active {
   box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.85);
 }
 
+/* off-screen until focused (skip-link pattern) — the keyboard/screen-reader
+   entry point to the file picker, kept out of the way of the hero visually */
+.browse-trigger {
+  position: absolute;
+  top: 1rem;
+  left: -9999px;
+  z-index: 1;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: white;
+  color: #111;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.browse-trigger:focus {
+  left: 1rem;
+}
+
 .branding {
   text-align: center;
 }
