@@ -41,15 +41,15 @@ Simple, simple, simple!
 - This repo enforces **linear history, rebase-merge only** on `main`. Before starting new work (and before committing anything already in progress), check whether the current branch is the right base:
   1. `git branch --show-current` — if it's not `main` and isn't a branch created for the task at hand, stop and check further before committing.
   2. `git log --oneline main..<branch>` — if this shows commits, the branch has work not yet on `main`. Check whether that work is an **open PR** (`gh pr list --head <branch>` or ask the developer) rather than assuming it's abandoned or already merged.
-  3. If there's an open PR for that branch, don't build new work on top of it unless asked — ask the developer whether to merge that PR first, or branch from `main` instead and let the two land independently.
-  4. Once `main` reflects the intended base (merge the pending PR if needed, then `git checkout main && git pull --ff-only`), create a fresh branch off it for the new work: `git checkout -b <new-branch>`. Untracked files in the working tree survive a branch switch, so any not-yet-committed new files carry over safely — but confirm with `git status` before and after.
-  5. Never `git rebase`, force-push, or otherwise rewrite shared history without explicit developer instruction, given the rebase-merge-only policy.
+  3. Once `main` reflects the intended base, create a fresh branch off it for the new work: `git checkout -b <new-branch>`. Untracked files in the working tree survive a branch switch, so any not-yet-committed new files carry over safely — but confirm with `git status` before and after.
+  4. Never `git rebase`, force-push, or otherwise rewrite shared history without explicit developer instruction, given the rebase-merge-only policy.
+  5. Do not self-merge PRs. PRs require review from a human and/or a separate agent. Do not @-mention Claude to trigger reviews, that is for a human to do.
 
 ### Github hygiene
 
 - When opening a PR or Issue on developer's behalf, also use the `Assisted-by:` trailer in the PR description
 - When posting a comment on developer's behalf, use a similar `Posted-by:` trailer in the comment
-- When starting a task on the Github Project, always change its Status to In Progress. After you merge a PR or notice that the developer has merged your PR, confirm the task's status is Done.
+- When starting a task on the Github Project, always change its Status to In Progress. If you learn that a PR is merged, confirm the task's status is Done.
 
 ### Project board
 
