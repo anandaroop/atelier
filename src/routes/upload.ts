@@ -75,10 +75,25 @@ function parseUpload(req: Request, maxUploadBytes: number): Promise<ParsedUpload
 
     bb.on("close", async () => {
       try {
-        const entries = entriesPromise ? await entriesPromise : undefined;
+        let entries: ZipEntry[] | undefined;
+        try {
+          entries = entriesPromise ? await entriesPromise : undefined;
+        } catch (err) {
+          // busboy truncates the file part on its own fileSize limit rather
+          // than erroring it — the truncated bytes then reach extractZip as
+          // a corrupt archive, which throws its own (non-ZipValidationError)
+          // parse error. Recognize the truncation and report the size cap
+          // instead of letting that raw parse error 500.
+          if (fileStream?.truncated) {
+            throw new ZipValidationError(`Uploaded zip exceeds the ${maxUploadBytes}-byte limit`);
+          }
+          throw err;
+        }
+
         if (fileStream?.truncated) {
           throw new ZipValidationError(`Uploaded zip exceeds the ${maxUploadBytes}-byte limit`);
         }
+
         if (settled) {
           return;
         }
@@ -123,6 +138,14 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         return;
       }
 
+      // Both headIndex and the serving layer key off <slug>/index.html — a
+      // zip missing it would publish a subdomain that 404s despite this
+      // endpoint reporting success, so reject before touching S3.
+      if (!entries.some((entry) => entry.path === "index.html")) {
+        res.status(400).json({ error: "Zip must contain an index.html at the root" });
+        return;
+      }
+
       const existing = await headIndex(s3Client, bucket, parsed.slug);
       if (existing.exists && !parsed.confirm) {
         res.status(409).json({
@@ -133,9 +156,17 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         return;
       }
 
+      // Only trustworthy once Cloudflare Access sits in front of this origin
+      // and sets this header itself (Milestone 2, see docs/PLAN.md); until
+      // then any client can spoof it, so it's provenance metadata only —
+      // never used for authz.
       const uploadedBy =
         req.get("Cf-Access-Authenticated-User-Email") || parsed.uploadedBy || "anonymous";
 
+      // Delete-then-put per docs/PLAN.md's "replace, not merge" design. A
+      // putFile failure mid-loop leaves the old content already gone and the
+      // new content partially written — accepted as a PoC-scale tradeoff
+      // rather than the more complex put-all-then-delete-orphans ordering.
       await deletePrefix(s3Client, bucket, parsed.slug);
 
       for (const entry of entries) {
