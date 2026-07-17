@@ -165,6 +165,10 @@
       return;
     }
 
+    // Clear any stale local-validation error immediately — otherwise it
+    // lingers until the debounced /check call resolves, which can take a
+    // while (or hang) on a slow connection.
+    setSlugMsg("", false);
     runCheck(slug);
   });
 
