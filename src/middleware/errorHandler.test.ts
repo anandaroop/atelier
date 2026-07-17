@@ -43,7 +43,10 @@ describe("errorHandler", () => {
 
     await request(buildApp()).get("/throws");
 
-    expect(consoleError).toHaveBeenCalledWith(expect.objectContaining({ message: "boom" }));
+    expect(consoleError).toHaveBeenCalledWith(
+      "GET /throws failed:",
+      expect.objectContaining({ message: "boom" }),
+    );
     consoleError.mockRestore();
   });
 
