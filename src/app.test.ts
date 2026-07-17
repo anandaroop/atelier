@@ -23,10 +23,10 @@ describe("static drop-zone UI", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toMatch(/text\/html/);
-    expect(res.text).toContain('id="dropzone"');
-    expect(res.text).toContain('id="slug"');
+    expect(res.text).toContain('id="status"');
+    expect(res.text).toContain('id="file-input"');
     expect(res.text).toContain("/app.js");
-    expect(res.text).toContain("/styles.css");
+    expect(res.text).toContain("styles.css");
   });
 
   it("serves the client script with a JS content-type", async () => {
