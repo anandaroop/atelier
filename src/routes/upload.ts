@@ -7,7 +7,7 @@ import { invalidateSlug } from "../lib/cloudfront";
 import { resolveContentType } from "../lib/mime";
 import { deletePrefix, headIndex, putFile } from "../lib/s3";
 import { validateSlug } from "../lib/slug";
-import { extractZip, type ZipEntry, ZipValidationError } from "../lib/zip";
+import { extractZip, normalizeZipEntries, type ZipEntry, ZipValidationError } from "../lib/zip";
 
 export interface UploadRouterDeps {
   s3Client: S3Client;
@@ -117,6 +117,12 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         return;
       }
 
+      const entries = normalizeZipEntries(parsed.entries);
+      if (entries.length === 0) {
+        res.status(400).json({ error: "Zip contains no usable files" });
+        return;
+      }
+
       const existing = await headIndex(s3Client, bucket, parsed.slug);
       if (existing.exists && !parsed.confirm) {
         res.status(409).json({
@@ -132,7 +138,7 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
 
       await deletePrefix(s3Client, bucket, parsed.slug);
 
-      for (const entry of parsed.entries) {
+      for (const entry of entries) {
         await putFile(
           s3Client,
           bucket,
@@ -153,7 +159,7 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
       res.json({
         ok: true,
         url: `https://${parsed.slug}.${publicDomain}`,
-        fileCount: parsed.entries.length,
+        fileCount: entries.length,
       });
     } catch (err) {
       if (err instanceof ZipValidationError) {

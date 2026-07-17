@@ -1,5 +1,11 @@
 import { Readable } from "node:stream";
-import { extractZip, ZipValidationError } from "./zip";
+import {
+  extractZip,
+  normalizeZipEntries,
+  stripCommonRoot,
+  stripMacosJunk,
+  ZipValidationError,
+} from "./zip";
 
 const CRC_TABLE = (() => {
   const table = new Int32Array(256);
@@ -167,5 +173,96 @@ describe("extractZip", () => {
     });
 
     await expect(extractZip(source, 1024 * 1024)).rejects.toThrow("aborted upload");
+  });
+});
+
+describe("stripMacosJunk", () => {
+  it("drops the __MACOSX sidecar directory", () => {
+    const entries = [
+      { path: "index.html", content: Buffer.from("") },
+      { path: "__MACOSX/index.html", content: Buffer.from("") },
+      { path: "__MACOSX/nested/._app.js", content: Buffer.from("") },
+    ];
+
+    expect(stripMacosJunk(entries).map((e) => e.path)).toEqual(["index.html"]);
+  });
+
+  it("drops .DS_Store at any depth", () => {
+    const entries = [
+      { path: "index.html", content: Buffer.from("") },
+      { path: ".DS_Store", content: Buffer.from("") },
+      { path: "assets/.DS_Store", content: Buffer.from("") },
+    ];
+
+    expect(stripMacosJunk(entries).map((e) => e.path)).toEqual(["index.html"]);
+  });
+
+  it("drops AppleDouble ._ resource-fork files at any depth", () => {
+    const entries = [
+      { path: "index.html", content: Buffer.from("") },
+      { path: "._index.html", content: Buffer.from("") },
+      { path: "assets/._app.js", content: Buffer.from("") },
+    ];
+
+    expect(stripMacosJunk(entries).map((e) => e.path)).toEqual(["index.html"]);
+  });
+
+  it("does not touch legitimate filenames that merely contain an underscore or dot", () => {
+    const entries = [
+      { path: "my_file.txt", content: Buffer.from("") },
+      { path: "data.config.js", content: Buffer.from("") },
+    ];
+
+    expect(stripMacosJunk(entries)).toEqual(entries);
+  });
+});
+
+describe("stripCommonRoot", () => {
+  it("collapses a single wrapping directory shared by every entry", () => {
+    const entries = [
+      { path: "site/index.html", content: Buffer.from("a") },
+      { path: "site/assets/app.js", content: Buffer.from("b") },
+    ];
+
+    expect(stripCommonRoot(entries).map((e) => e.path)).toEqual(["index.html", "assets/app.js"]);
+  });
+
+  it("leaves entries untouched when they already sit at the zip root", () => {
+    const entries = [
+      { path: "index.html", content: Buffer.from("a") },
+      { path: "assets/app.js", content: Buffer.from("b") },
+    ];
+
+    expect(stripCommonRoot(entries)).toEqual(entries);
+  });
+
+  it("leaves entries untouched when they don't share a single common root", () => {
+    const entries = [
+      { path: "site/index.html", content: Buffer.from("a") },
+      { path: "other/thing.txt", content: Buffer.from("b") },
+    ];
+
+    expect(stripCommonRoot(entries)).toEqual(entries);
+  });
+
+  it("handles a single-file zip with no wrapping directory", () => {
+    const entries = [{ path: "index.html", content: Buffer.from("a") }];
+
+    expect(stripCommonRoot(entries)).toEqual(entries);
+  });
+});
+
+describe("normalizeZipEntries", () => {
+  it("strips macOS junk and a wrapping directory together, matching a Finder-compressed folder", () => {
+    // extractZip already omits directory entries themselves (e.g. "test-upload/"),
+    // so real output never includes one — only its contained files do.
+    const entries = [
+      { path: "test-upload/index.html", content: Buffer.from("<html></html>") },
+      { path: "__MACOSX/test-upload/._index.html", content: Buffer.from("junk") },
+    ];
+
+    const result = normalizeZipEntries(entries);
+
+    expect(result).toEqual([{ path: "index.html", content: Buffer.from("<html></html>") }]);
   });
 });
