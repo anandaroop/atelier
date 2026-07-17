@@ -130,6 +130,18 @@ describe("extractZip", () => {
     await expect(extractZip(bufferToStream(zip), 1024 * 1024)).rejects.toThrow(ZipValidationError);
   });
 
+  it("rejects an entry escaping the root via a Windows-style backslash path", async () => {
+    const zip = buildZip([{ path: "..\\..\\escape.html", content: "gotcha" }]);
+
+    await expect(extractZip(bufferToStream(zip), 1024 * 1024)).rejects.toThrow(ZipValidationError);
+  });
+
+  it("rejects an entry whose path contains a null byte", async () => {
+    const zip = buildZip([{ path: "index.html\0.png", content: "gotcha" }]);
+
+    await expect(extractZip(bufferToStream(zip), 1024 * 1024)).rejects.toThrow(ZipValidationError);
+  });
+
   it("rejects mid-stream once total uncompressed bytes exceed the cap", async () => {
     const zip = buildZip([
       { path: "big.txt", content: "a".repeat(1000) },
@@ -137,5 +149,23 @@ describe("extractZip", () => {
     ]);
 
     await expect(extractZip(bufferToStream(zip), 500)).rejects.toThrow(ZipValidationError);
+  });
+
+  it("allows total uncompressed bytes exactly equal to the cap", async () => {
+    const zip = buildZip([{ path: "exact.txt", content: "a".repeat(500) }]);
+
+    const entries = await extractZip(bufferToStream(zip), 500);
+
+    expect(entries).toHaveLength(1);
+  });
+
+  it("rejects when the source stream errors instead of hanging", async () => {
+    const source = new Readable({
+      read() {
+        this.emit("error", new Error("aborted upload"));
+      },
+    });
+
+    await expect(extractZip(source, 1024 * 1024)).rejects.toThrow("aborted upload");
   });
 });
