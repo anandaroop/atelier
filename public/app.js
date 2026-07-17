@@ -86,6 +86,15 @@
     }
   }
 
+  const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+  // data.notes / data.error can echo back attacker-controlled strings (e.g.
+  // an uploaded zip's filename), so anything server-provided must be
+  // escaped before landing in innerHTML.
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+  }
+
   function describeExisting(data) {
     const who = data.uploadedBy || "someone";
     const when = data.uploadedAt ? formatRelativeTime(data.uploadedAt) : "previously";
@@ -216,6 +225,7 @@
     setProgress(null);
     setStatus("");
     submitBtn.disabled = false;
+    overwriteConfirm.disabled = false;
 
     if (!data) {
       setResult('<p class="error">Something went wrong — please retry.</p>');
@@ -224,11 +234,12 @@
 
     if (status === 200 && data.ok) {
       hideOverwrite();
+      const url = escapeHtml(data.url);
       const notes = Array.isArray(data.notes)
-        ? data.notes.map((note) => `<p class="note">${note}</p>`).join("")
+        ? data.notes.map((note) => `<p class="note">${escapeHtml(note)}</p>`).join("")
         : "";
       setResult(
-        `<p class="success">Live at <a href="${data.url}" target="_blank" rel="noopener">${data.url}</a> (${data.fileCount} files)</p>${notes}`,
+        `<p class="success">Live at <a href="${url}" target="_blank" rel="noopener">${url}</a> (${data.fileCount} files)</p>${notes}`,
       );
       return;
     }
@@ -240,7 +251,8 @@
       return;
     }
 
-    setResult(`<p class="error">${data.error || "Something went wrong — please retry."}</p>`);
+    const message = data.error ? escapeHtml(data.error) : "Something went wrong — please retry.";
+    setResult(`<p class="error">${message}</p>`);
   }
 
   function upload(formData) {
@@ -248,6 +260,9 @@
     setStatus("Uploading…");
     setProgress(0);
     submitBtn.disabled = true;
+    // Guards against a re-toggled confirm checkbox firing a second upload
+    // for the same pending overwrite while this one is still in flight.
+    overwriteConfirm.disabled = true;
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/upload");
@@ -269,6 +284,7 @@
       setProgress(null);
       setStatus("");
       submitBtn.disabled = false;
+      overwriteConfirm.disabled = false;
       setResult('<p class="error">Network error — please retry.</p>');
     });
 
