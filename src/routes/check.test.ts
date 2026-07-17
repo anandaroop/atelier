@@ -2,6 +2,7 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import express from "express";
 import request from "supertest";
 import { headIndex } from "../lib/s3";
+import { errorHandler } from "../middleware/errorHandler";
 import { createCheckRouter } from "./check";
 
 jest.mock("../lib/s3");
@@ -13,6 +14,7 @@ const bucket = "artsy-atelier";
 function buildApp() {
   const app = express();
   app.use(createCheckRouter(client, bucket));
+  app.use(errorHandler);
   return app;
 }
 
@@ -71,7 +73,7 @@ describe("GET /check", () => {
     const res = await request(buildApp()).get("/check?slug=marketing-dashboard");
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: "Failed to check slug status" });
+    expect(res.body).toEqual({ error: "Internal server error" });
     consoleError.mockRestore();
   });
 
