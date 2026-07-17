@@ -9,33 +9,14 @@
   // enforces its own configured limit regardless of this value.
   const MAX_UPLOAD_BYTES = 52428800;
 
-  const form = document.getElementById("upload-form");
-  const slugInput = document.getElementById("slug");
-  const slugMsg = document.getElementById("slug-msg");
-  const dropzone = document.getElementById("dropzone");
   const fileInput = document.getElementById("file-input");
-  const fileNameEl = document.getElementById("file-name");
-  const overwriteEl = document.getElementById("overwrite");
-  const overwriteMsg = document.getElementById("overwrite-msg");
-  const overwriteConfirm = document.getElementById("overwrite-confirm");
-  const progressEl = document.getElementById("progress");
   const statusEl = document.getElementById("status");
-  const submitBtn = document.getElementById("submit");
-  const resultEl = document.getElementById("result");
 
-  let selectedFile = null;
-  let checkSequence = 0;
+  let uploading = false;
   let pendingFormData = null;
+  let dragDepth = 0;
 
-  function debounce(fn, waitMs) {
-    let timer;
-    return (...args) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => fn(...args), waitMs);
-    };
-  }
-
-  function validateSlugLocal(slug) {
+  function validateSlug(slug) {
     if (!SLUG_PATTERN.test(slug)) {
       return {
         valid: false,
@@ -49,33 +30,32 @@
     return { valid: true };
   }
 
+  // Turns a dropped zip's filename into a candidate slug: strip the
+  // extension, lowercase, collapse anything non-alphanumeric into hyphens,
+  // trim the ends, then cap at the server's 63-char limit.
+  function deriveSlug(filename) {
+    let slug = filename
+      .replace(/\.zip$/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    slug = slug.slice(0, 63).replace(/-+$/g, "");
+
+    if (!slug) {
+      return {
+        valid: false,
+        error: "Couldn't derive a name from that filename — try renaming the zip.",
+      };
+    }
+    return { ...validateSlug(slug), slug };
+  }
+
   function isZipFile(file) {
     const name = file.name.toLowerCase();
     if (name.endsWith(".zip")) {
       return true;
     }
     return file.type === "application/zip" || file.type === "application/x-zip-compressed";
-  }
-
-  function formatRelativeTime(iso) {
-    const then = new Date(iso).getTime();
-    if (Number.isNaN(then)) {
-      return iso;
-    }
-    const diffMs = Date.now() - then;
-    const minutes = Math.round(diffMs / 60000);
-    if (minutes < 1) {
-      return "just now";
-    }
-    if (minutes < 60) {
-      return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
-    }
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) {
-      return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-    }
-    const days = Math.round(hours / 24);
-    return `${days} day${days === 1 ? "" : "s"} ago`;
   }
 
   function safeJson(text) {
@@ -88,240 +68,169 @@
 
   const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
-  // data.notes / data.error can echo back attacker-controlled strings (e.g.
-  // an uploaded zip's filename), so anything server-provided must be
-  // escaped before landing in innerHTML.
+  // The live URL is server-provided; escape before it lands in innerHTML.
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
   }
 
-  function describeExisting(data) {
-    const who = data.uploadedBy || "someone";
-    const when = data.uploadedAt ? formatRelativeTime(data.uploadedAt) : "previously";
-    return `${who} uploaded here ${when} — uploading will overwrite it.`;
+  function showIdle() {
+    statusEl.hidden = true;
+    statusEl.className = "status";
+    statusEl.innerHTML = "";
   }
 
-  function setSlugMsg(text, isError) {
-    slugMsg.textContent = text;
-    slugMsg.hidden = !text;
-    slugMsg.classList.toggle("error", Boolean(isError));
-  }
-
-  function hideOverwrite() {
-    overwriteEl.hidden = true;
-    overwriteMsg.textContent = "";
-    overwriteConfirm.checked = false;
-    pendingFormData = null;
-  }
-
-  function showOverwrite(data) {
-    overwriteMsg.textContent = describeExisting(data);
-    overwriteEl.hidden = false;
-  }
-
-  function setResult(html) {
-    resultEl.innerHTML = html;
-  }
-
-  function setStatus(text) {
+  function showBusy(text) {
+    statusEl.hidden = false;
+    statusEl.className = "status";
     statusEl.textContent = text;
-    statusEl.hidden = !text;
   }
 
-  function setProgress(fraction) {
-    if (fraction === null) {
-      progressEl.hidden = true;
-      return;
-    }
-    progressEl.hidden = false;
-    progressEl.value = Math.round(fraction * 100);
+  function showError(message) {
+    statusEl.hidden = false;
+    statusEl.className = "status error";
+    statusEl.textContent = message;
   }
 
-  const runCheck = debounce((slug) => {
-    const sequence = ++checkSequence;
-    fetch(`/check?slug=${encodeURIComponent(slug)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (sequence !== checkSequence) {
-          return; // a newer check has since started; ignore this stale response
-        }
-        if (data.exists) {
-          setSlugMsg(describeExisting(data), false);
-        } else {
-          setSlugMsg("", false);
-        }
-      })
-      .catch(() => {
-        if (sequence === checkSequence) {
-          setSlugMsg("", false);
-        }
-      });
-  }, 300);
-
-  slugInput.addEventListener("input", () => {
-    const slug = slugInput.value.trim();
-    hideOverwrite();
-
-    if (!slug) {
-      setSlugMsg("", false);
-      return;
-    }
-
-    const validation = validateSlugLocal(slug);
-    if (!validation.valid) {
-      checkSequence++; // invalidate any in-flight check for the previous value
-      setSlugMsg(validation.error, true);
-      return;
-    }
-
-    // Clear any stale local-validation error immediately — otherwise it
-    // lingers until the debounced /check call resolves, which can take a
-    // while (or hang) on a slow connection.
-    setSlugMsg("", false);
-    runCheck(slug);
-  });
-
-  function setFile(file) {
-    if (!file) {
-      return;
-    }
-    selectedFile = file;
-    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
-    fileNameEl.textContent = `${file.name} (${sizeMb} MB)`;
-    fileNameEl.hidden = false;
-
-    if (!isZipFile(file)) {
-      setResult('<p class="error">Please choose a .zip file.</p>');
-    } else if (file.size > MAX_UPLOAD_BYTES) {
-      setResult('<p class="error">That file is larger than the upload limit.</p>');
-    } else {
-      setResult("");
-    }
+  function showSuccess(data) {
+    statusEl.hidden = false;
+    statusEl.className = "status success";
+    const url = escapeHtml(data.url);
+    statusEl.innerHTML = `<span class="line">Your site is live!</span><a class="url" href="${url}" target="_blank" rel="noopener">${url}</a>`;
   }
 
-  // A real <button>, so Enter/Space already trigger a native "click" —
-  // no manual keydown handling needed for keyboard activation.
-  dropzone.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => setFile(fileInput.files[0]));
+  function showConfirm(slug, formData) {
+    pendingFormData = formData;
+    statusEl.hidden = false;
+    statusEl.className = "status confirm";
+    // slug is client-derived from SLUG_PATTERN, so it can't contain
+    // markup — no escaping needed for it specifically.
+    statusEl.innerHTML = `
+      <span class="line">There is already a site at ${slug}.artsy.dev</span>
+      <span class="line">Overwrite?
+        <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
+        /
+        <button type="button" class="link-btn" data-action="confirm-no">No</button>
+      </span>
+    `;
+  }
 
-  ["dragenter", "dragover"].forEach((type) => {
-    dropzone.addEventListener(type, (event) => {
-      event.preventDefault();
-      dropzone.classList.add("drag-active");
-    });
-  });
-  ["dragleave", "drop"].forEach((type) => {
-    dropzone.addEventListener(type, (event) => {
-      event.preventDefault();
-      dropzone.classList.remove("drag-active");
-    });
-  });
-  dropzone.addEventListener("drop", (event) => {
-    const file = event.dataTransfer?.files[0];
-    setFile(file);
-  });
-
-  function handleResponse(status, data, formData) {
-    setProgress(null);
-    setStatus("");
-    submitBtn.disabled = false;
-    overwriteConfirm.disabled = false;
+  function handleResponse(status, data, formData, slug) {
+    uploading = false;
 
     if (!data) {
-      setResult('<p class="error">Something went wrong — please retry.</p>');
+      showError("Something went wrong — please retry.");
       return;
     }
-
     if (status === 200 && data.ok) {
-      hideOverwrite();
-      const url = escapeHtml(data.url);
-      const notes = Array.isArray(data.notes)
-        ? data.notes.map((note) => `<p class="note">${escapeHtml(note)}</p>`).join("")
-        : "";
-      setResult(
-        `<p class="success">Live at <a href="${url}" target="_blank" rel="noopener">${url}</a> (${data.fileCount} files)</p>${notes}`,
-      );
+      showSuccess(data);
       return;
     }
-
     if (status === 409) {
-      pendingFormData = formData;
-      showOverwrite(data);
-      setResult('<p class="error">Confirm the overwrite above, then upload again.</p>');
+      showConfirm(slug, formData);
       return;
     }
-
-    const message = data.error ? escapeHtml(data.error) : "Something went wrong — please retry.";
-    setResult(`<p class="error">${message}</p>`);
+    showError(data.error || "Something went wrong — please retry.");
   }
 
-  function upload(formData) {
-    setResult("");
-    setStatus("Uploading…");
-    setProgress(0);
-    submitBtn.disabled = true;
-    // Guards against a re-toggled confirm checkbox firing a second upload
-    // for the same pending overwrite while this one is still in flight.
-    overwriteConfirm.disabled = true;
+  function upload(formData, slug) {
+    uploading = true;
+    showBusy("Uploading…");
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/upload");
 
     xhr.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable) {
-        setProgress(event.loaded / event.total);
+        showBusy(`Uploading… ${Math.round((event.loaded / event.total) * 100)}%`);
       }
     });
-    xhr.upload.addEventListener("load", () => {
-      setProgress(1);
-      setStatus("Processing…");
-    });
+    xhr.upload.addEventListener("load", () => showBusy("Processing…"));
 
     xhr.addEventListener("load", () => {
-      handleResponse(xhr.status, safeJson(xhr.responseText), formData);
+      handleResponse(xhr.status, safeJson(xhr.responseText), formData, slug);
     });
     xhr.addEventListener("error", () => {
-      setProgress(null);
-      setStatus("");
-      submitBtn.disabled = false;
-      overwriteConfirm.disabled = false;
-      setResult('<p class="error">Network error — please retry.</p>');
+      uploading = false;
+      showError("Network error — please retry.");
     });
 
     xhr.send(formData);
   }
 
-  overwriteConfirm.addEventListener("change", () => {
-    if (!overwriteConfirm.checked || !pendingFormData) {
+  function handleFile(file) {
+    if (!file || uploading) {
       return;
     }
-    pendingFormData.set("confirm", "true");
-    upload(pendingFormData);
-  });
-
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-
-    const slug = slugInput.value.trim();
-    const validation = validateSlugLocal(slug);
-    if (!validation.valid) {
-      setSlugMsg(validation.error, true);
+    if (!isZipFile(file)) {
+      showError("Please drop a .zip file.");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      showError("That file is larger than the upload limit.");
       return;
     }
 
-    if (!selectedFile) {
-      setResult('<p class="error">Please choose a .zip file.</p>');
-      return;
-    }
-    if (!isZipFile(selectedFile)) {
-      setResult('<p class="error">Please choose a .zip file.</p>');
+    const derived = deriveSlug(file.name);
+    if (!derived.valid) {
+      showError(derived.error);
       return;
     }
 
     const formData = new FormData();
-    formData.set("slug", slug);
-    formData.set("zip", selectedFile, selectedFile.name);
+    formData.set("slug", derived.slug);
+    formData.set("zip", file, file.name);
+    upload(formData, derived.slug);
+  }
 
-    upload(formData);
+  window.addEventListener("dragenter", (event) => {
+    event.preventDefault();
+    dragDepth++;
+    document.body.classList.add("drag-active");
+  });
+  window.addEventListener("dragover", (event) => {
+    event.preventDefault(); // required on every dragover to allow a drop
+  });
+  window.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) {
+      document.body.classList.remove("drag-active");
+    }
+  });
+  window.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove("drag-active");
+    handleFile(event.dataTransfer?.files[0]);
+  });
+
+  fileInput.addEventListener("change", () => {
+    handleFile(fileInput.files[0]);
+    fileInput.value = ""; // allow re-selecting the same file later
+  });
+
+  // Whole page is the drop target, so clicking anywhere opens the file
+  // picker — except on interactive elements the status area renders
+  // (the live-site link, the overwrite confirm buttons).
+  document.body.addEventListener("click", (event) => {
+    if (uploading || event.target.closest("a, button")) {
+      return;
+    }
+    fileInput.click();
+  });
+
+  statusEl.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-action]")?.dataset.action;
+    if (!action || !pendingFormData) {
+      return;
+    }
+    if (action === "confirm-yes") {
+      const slug = pendingFormData.get("slug");
+      pendingFormData.set("confirm", "true");
+      upload(pendingFormData, slug);
+      pendingFormData = null;
+    } else if (action === "confirm-no") {
+      pendingFormData = null;
+      showIdle();
+    }
   });
 })();

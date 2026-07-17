@@ -4,50 +4,31 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Atelier</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link
+      rel="preload"
+      href="https://webfonts.artsy.net/ll-unica77_regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="https://webfonts.artsy.net/ll-unica77_medium.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="https://webfonts.artsy.net/ll-unica77.css" />
   </head>
   <body>
-    <main class="card">
-      <h1>Atelier</h1>
-      <p class="subtitle">Drop a zip. Get a live site.</p>
+    <div class="branding">
+      <div class="title">The Atelier</div>
+      <div class="tagline">A place to hang your html sketches. Drop a zip, get a live site.</div>
+      <div id="status" class="status" aria-live="polite" hidden></div>
+    </div>
 
-      <form id="upload-form" novalidate>
-        <label for="slug">Slug</label>
-        <div class="slug-field">
-          <input
-            id="slug"
-            name="slug"
-            type="text"
-            placeholder="marketing-dashboard"
-            autocomplete="off"
-            required
-          />
-          <span class="slug-suffix">.artsy.dev</span>
-        </div>
-        <p id="slug-msg" class="msg" aria-live="polite" hidden></p>
-
-        <button id="dropzone" class="dropzone" type="button" aria-label="Choose a zip file">
-          <span>Drag a zip here, or click to choose a file</span>
-          <span id="file-name" class="file-name" hidden></span>
-        </button>
-        <input id="file-input" type="file" accept=".zip,application/zip" hidden />
-
-        <div id="overwrite" class="overwrite" hidden>
-          <p id="overwrite-msg"></p>
-          <label class="confirm-label">
-            <input id="overwrite-confirm" type="checkbox" />
-            Yes, overwrite it
-          </label>
-        </div>
-
-        <progress id="progress" value="0" max="100" hidden></progress>
-        <p id="status" class="msg" aria-live="polite" hidden></p>
-
-        <button id="submit" type="submit">Upload</button>
-      </form>
-
-      <div id="result" class="result" aria-live="polite"></div>
-    </main>
+    <input id="file-input" type="file" accept=".zip,application/zip" hidden />
 
     <script src="/app.js" defer></script>
   </body>
