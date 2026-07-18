@@ -1,3 +1,7 @@
+// NOTE: public/app.js carries a hand-synced mirror of this validation logic
+// (it's a dependency-free classic script with no build step, so it can't
+// import this module). If you change these rules, update that mirror too.
+
 export interface SlugValidationResult {
   valid: boolean;
   error?: string;
