@@ -1,6 +1,7 @@
 (() => {
-  // Mirrors src/lib/slug.ts — kept in sync by hand since this is a
-  // dependency-free classic script with no build step to share it.
+  // Mirrors src/lib/slug.ts (validateSlug, deriveSlug) — kept in sync by
+  // hand since this is a dependency-free classic script with no build step
+  // to share it.
   const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   const RESERVED_SLUGS = new Set(["atelier", "www", "api", "upload", "admin"]);
 
@@ -31,12 +32,16 @@
     return { valid: true };
   }
 
-  // Turns a dropped zip's filename into a candidate slug: strip the
-  // extension, lowercase, collapse anything non-alphanumeric into hyphens,
-  // trim the ends, then cap at the server's 63-char limit.
+  // Turns a dropped zip's filename into a candidate slug: strip the .zip
+  // extension, then a trailing .html/.htm — Finder names a single-file zip
+  // after the file including its extension (e.g. mypage.html ->
+  // mypage.html.zip), so without this the slug would pick up a stray
+  // "-html" — then lowercase, collapse anything non-alphanumeric into
+  // hyphens, trim the ends, then cap at the server's 63-char limit.
   function deriveSlug(filename) {
     let slug = filename
       .replace(/\.zip$/i, "")
+      .replace(/\.html?$/i, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
