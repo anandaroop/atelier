@@ -1,6 +1,9 @@
 (() => {
-  // Mirrors src/lib/slug.ts — kept in sync by hand since this is a
-  // dependency-free classic script with no build step to share it.
+  // Mirrors src/lib/slug.ts (validateSlug) and src/lib/deriveSlug.ts
+  // (deriveSlug) — kept in sync by hand since this is a dependency-free
+  // classic script with no build step to share them. Those files are the
+  // tested source of truth (see their *.test.ts); if you change the
+  // sanitization/validation rules here, update them (and their tests) too.
   const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   const RESERVED_SLUGS = new Set(["atelier", "www", "api", "upload", "admin"]);
 
@@ -34,6 +37,7 @@
   // Turns a dropped zip's filename into a candidate slug: strip the
   // extension, lowercase, collapse anything non-alphanumeric into hyphens,
   // trim the ends, then cap at the server's 63-char limit.
+  // Mirrors src/lib/deriveSlug.ts — that's the tested copy; update both.
   function deriveSlug(filename) {
     let slug = filename
       .replace(/\.zip$/i, "")
