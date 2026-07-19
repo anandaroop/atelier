@@ -15,7 +15,7 @@
   const fileInput = document.getElementById("file-input");
   const statusEl = document.getElementById("status");
   const browseTrigger = document.getElementById("browse-trigger");
-  const branding = document.getElementById("branding");
+  const clickTarget = document.getElementById("click-target");
 
   let uploading = false;
   let pendingFormData = null;
@@ -215,10 +215,11 @@
   });
 
   // Whole page is the drop target, but click-to-browse is scoped to the
-  // hero (title/tagline/status) so clicking elsewhere on the page doesn't
-  // surprise the user with a file picker. Excludes interactive elements the
-  // status area renders (the live-site link, the overwrite confirm buttons).
-  branding.addEventListener("click", (event) => {
+  // tagline/status area (not the giant title) so clicking elsewhere on the
+  // page doesn't surprise the user with a file picker. Excludes interactive
+  // elements the status area renders (the live-site link, the overwrite
+  // confirm buttons).
+  clickTarget.addEventListener("click", (event) => {
     if (uploading || event.target.closest("a, button")) {
       return;
     }

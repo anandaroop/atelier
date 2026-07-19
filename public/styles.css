@@ -45,13 +45,25 @@ body.drag-active {
 
 .branding {
   text-align: center;
-  cursor: pointer;
 }
 
 .title {
   font-size: 6rem;
   font-weight: 400;
   text-shadow: 0px 0px 20px rgba(0, 0, 0, 0.5);
+}
+
+.click-target {
+  display: inline-block;
+  cursor: pointer;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0);
+  transition: background 0.15s ease;
+}
+
+.click-target:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .tagline {
