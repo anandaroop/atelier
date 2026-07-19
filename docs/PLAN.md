@@ -1,19 +1,30 @@
 # Atelier — Milestone 1: Upload App (shape & architecture)
 
+> [!WARNING]
+>
+> **Historical / seed document.** This is the shape-and-architecture doc that
+> seeded the initial [GitHub project](https://github.com/users/anandaroop/projects/7)
+> issues and epics for Milestone 1. The project board is now the source of
+> truth for task status — this doc is kept for the design rationale behind
+> that seed (why things are scoped/sequenced the way they are), not as a live
+> spec.
+
 ## Context
 
 The serving path is proven: a zip's contents placed under `s3://artsy-atelier/<slug>/`
 are served live at `https://<slug>.artsy.dev` via CloudFront + a viewer-request
-Function (see [SETUP.md](SETUP.md)). But today the *only* way to get content
-into S3 is hand-running `aws s3 cp`. This milestone builds the piece that makes
-Atelier usable by non-technical people: a **web app where you drop a zip, pick a
-slug, and the site goes live in seconds.**
+Function (see [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md)). But today
+the _only_ way to get content into S3 is hand-running `aws s3 cp`. This milestone
+builds the piece that makes Atelier usable by non-technical people: a **web app
+where you drop a zip, pick a slug, and the site goes live in seconds.**
 
-Per the just-swapped milestone order in [POC.md](POC.md), **Uploads is now
+Per the just-swapped milestone order in
+[docs/hackathon-poc/2-POC-PLAN.md](hackathon-poc/2-POC-PLAN.md), **Uploads is now
 Milestone 1** and **Auth (Cloudflare Access) is Milestone 2**. So this app ships
-*without* auth for now — accepted, hardened in M2.
+_without_ auth for now — accepted, hardened in M2.
 
 Confirmed decisions:
+
 - **Stack:** Node + TypeScript + Express, transpiled to plain JS (`tsc` → `dist/`),
   deployed via Hokusai to Artsy k8s on AWS.
 - **Sequencing:** local-first — get the full upload→serve loop working locally
@@ -139,7 +150,7 @@ uploader/time comes from S3 object metadata (per ARCHITECTURE.md §3).
 - CSRF token/Origin check → tracked, lands with M2 (open-write risk documented).
 - Vault/ESO secret delivery → later hardening; static IAM key for now.
 - Site delete / site listing / DynamoDB index → future (ARCHITECTURE.md notes).
-- The ETag-through-Cloudflare open item (SETUP.md) — serving-layer issue, not
+- The ETag-through-Cloudflare open item (3-SETUP.md) — serving-layer issue, not
   this app.
 
 ## Task tracking
@@ -152,6 +163,7 @@ project (not this file) is the source of truth for what's done and what's next.
 
 Local, against the real bucket + live distribution (mirrors ARCHITECTURE.md
 §Verification):
+
 1. **Happy path:** `yarn dev`, open `/`, drop a small zip with `index.html` under
    slug `test-upload`; confirm objects land under `s3://artsy-atelier/test-upload/`
    with correct content-types, then `https://test-upload.artsy.dev/` renders.

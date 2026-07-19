@@ -1,4 +1,82 @@
-# Steps
+# Atelier PoC — Setup
+
+Concise, canonical path to stand the PoC up as it currently exists (serving
+via `*.artsy.dev`, not the originally-planned `*.atelier.artsy.dev` — see
+"Abandoned detour" below). The raw, as-it-happened log with exploratory
+dead-ends is folded into the collapsed section at the foot of this document.
+
+## Prerequisites
+
+- `artsy.dev` delegated to Cloudflare nameservers (registrar-level change at
+  GoDaddy). One-time, not PoC-specific — don't revert this in teardown.
+- An AWS identity that can create S3/CloudFront/IAM-adjacent resources. Note:
+  `acm:RequestCertificate` and Cloudflare's CSR access both required an
+  elevated role (Jian, `InfrastructureAdmin`) — the default `Developer` role
+  can't do either.
+
+## Steps
+
+1. **S3 bucket + test content** — bucket `artsy-atelier` (`us-east-1`),
+   public access fully blocked, `test/index.html` uploaded with
+   `Cache-Control: no-cache` and explicit `Content-Type`.
+
+2. **CloudFront Origin Access Control (OAC)** — `atelier-poc-oac`, lets
+   CloudFront read the private bucket via SigV4 request signing (no static
+   credentials).
+
+3. **CloudFront Function** — `atelier-poc-router`, `viewer-request` stage.
+   Extracts the slug from the `Host` header and rewrites the URI to
+   `/<slug>/...`, with asset / directory-index / SPA-fallback branches.
+   Created, then published to `LIVE`.
+
+4. **ACM certificate for `*.artsy.dev`** (`us-east-1`, DNS validation).
+   Requires the elevated role — done via AWS Console. Validation CNAME added
+   in Cloudflare DNS (**DNS only**, not proxied).
+
+5. **CloudFront distribution** — S3 origin (via OAC), the router function
+   attached on `viewer-request`, `CachingOptimized` managed cache policy,
+   alias `*.artsy.dev`, the ACM cert from step 4. (A `403→404`
+   `CustomErrorResponse` was attempted but dropped — AWS requires a real
+   `ResponsePagePath` to pair with a `ResponseCode`, which we don't have;
+   missing pages currently 403 rather than 404.)
+
+6. **S3 bucket policy** — allows `cloudfront.amazonaws.com` to `GetObject`,
+   scoped via `Condition.StringEquals["AWS:SourceArn"]` to this exact
+   distribution's ARN.
+
+7. **Cloudflare DNS + TLS** — `CNAME *` → the distribution's
+   `*.cloudfront.net` domain, **Proxied**. Zone SSL/TLS mode set to
+   **Full (strict)**.
+
+8. **Verify** — `curl -sI https://test.artsy.dev/` returns `200` with the
+   uploaded content, correct `content-type`/`cache-control`.
+
+## Abandoned detour: nested `atelier` subdomain
+
+Originally built against `*.atelier.artsy.dev` per [2-POC-PLAN.md](2-POC-PLAN.md) — same
+steps as above, but with that alias and a cert scoped to it. TLS handshakes
+failed: Cloudflare's free Universal SSL only covers one level of wildcard
+(`*.artsy.dev`), not a wildcard-of-a-subdomain. Activating Cloudflare's
+Advanced Certificate Manager ($10/mo) would fix this, but hit a second
+permissions wall (no CSR access for our role) after paying for it. Pivoted to
+bare `*.artsy.dev` instead, trading away the `atelier.` namespace isolation.
+
+Leftover artifacts from this detour that teardown must also cover: an ACM
+cert for `*.atelier.artsy.dev`, its DNS validation CNAME, and the (now
+orphaned) `*.atelier` DNS CNAME.
+
+## Known open item
+
+`ETag` header is present at S3 and at CloudFront directly, but missing by the
+time Cloudflare proxies the response to the viewer. Root cause unidentified —
+see "Open items" in the log below. Not a correctness issue (`no-cache`
+still guarantees freshness), just loses the `304`-revalidation savings from
+ARCHITECTURE.md §4.
+
+## Log of actual steps
+
+<details>
+<summary>Raw, chronological log of the commands actually run — kept for exploratory dead-ends and error output not reflected in the canonical steps above</summary>
 
 Keeping a running log of configuration steps.
 
@@ -309,7 +387,9 @@ aws s3api put-bucket-policy --bucket "$BUCKET" --policy file:///tmp/atelier-buck
 aws cloudfront get-distribution --id E22U9CWUDKPZP6 --query 'Distribution.Status' --output text
 ```
 
-## Open items
+_Note: log kind falls apart here as we were working quickly during hackathon_
+
+### Open items
 
 - **Lost the nested `atelier` subdomain.** Cloudflare's free Universal SSL only
   covers one level of wildcard (`*.artsy.dev`), not `*.atelier.artsy.dev`.
@@ -317,7 +397,7 @@ aws cloudfront get-distribution --id E22U9CWUDKPZP6 --query 'Distribution.Status
   separate "no CSR access" permission wall for our role after activating it.
   Pivoted to bare `*.artsy.dev` instead — slugs now live at `<slug>.artsy.dev`,
   sharing the root namespace with any other `artsy.dev` subdomain (an exact
-  match still wins over the wildcard, but any *new* single-label subdomain
+  match still wins over the wildcard, but any _new_ single-label subdomain
   created later without one would silently land on this distribution).
 
 - **`ETag` header missing from responses through the full chain.** Confirmed
@@ -329,3 +409,5 @@ aws cloudfront get-distribution --id E22U9CWUDKPZP6 --query 'Distribution.Status
   ticket/docs dig. Not a correctness issue (`Cache-Control: no-cache` still
   guarantees freshness), just means we lose the `304`-revalidation bandwidth
   savings described in ARCHITECTURE.md §4.
+
+</details>

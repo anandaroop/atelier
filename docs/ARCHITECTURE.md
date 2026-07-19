@@ -10,7 +10,9 @@ is gated to verified Artsy users; once in, anyone may overwrite any slug after
 confirming intent.
 
 This document fixes the v1 architecture and stack — the target design we build
-toward. Decisions below reflect the sketch in `docs/sketch.png` plus these
+toward. Decisions below reflect the original sketch (now archived at
+[docs/hackathon-poc/initial-sketch-now-obsolete.png](hackathon-poc/initial-sketch-now-obsolete.png),
+superseded by the tldraw diagram in the [README](../README.md)) plus these
 confirmed choices: **Cloudflare Access** for auth, **CloudFront + S3**
 (serverless serving, no pass-through server) for delivery, **Node on the
 existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
@@ -20,10 +22,10 @@ existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
 **Deviation from this document, as actually built:** the nested
 `*.atelier.artsy.dev` wildcard below hit a Cloudflare free-tier TLS limit
 during the PoC and was replaced with the flat `*.artsy.dev` — see
-[SETUP.md](SETUP.md) ("Abandoned detour") and [SUMMARY.md](SUMMARY.md#open-question-return-to-the-nested-wildcard-design)
-for the plan to return to the nested design once the cert issue is resolved.
-Everything else on this page (CloudFront+S3, the upload app, Cloudflare
-Access) still reflects the live plan.
+[docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md) ("Abandoned detour")
+and risk #1 below for the plan to return to the nested design once the cert
+issue is resolved. Everything else on this page (CloudFront+S3, the upload
+app, Cloudflare Access) still reflects the live plan.
 
 ## Architecture
 
@@ -156,13 +158,17 @@ build step. Strategy:
 
 ## Repo layout (proposed)
 
+**Superseded:** the `app/`-nested layout below was the original proposal.
+The upload app actually lives at the repo root instead (decided during issue
+#2 scaffolding) — see [PLAN.md](PLAN.md#repo-layout) for the as-built layout.
+
 ```
 atelier/
   app/                 Node upload service (UI + /upload + /check)
   infra/               IaC (Terraform): S3, CloudFront + Function, ACM cert,
                        scoped S3-write IAM policy; Cloudflare DNS + Access
   hokusai/             Hokusai config + k8s manifests (+ Vault/ESO secret wiring)
-  docs/                sketch.png (existing) + this design
+  docs/                architecture docs and diagrams
 ```
 
 ## Key decisions & rationale
@@ -219,6 +225,14 @@ coordination:
    (us-east-1) + a Cloudflare Access app over `*.atelier.artsy.dev`; the
    `artsy.dev` zone must be added to Cloudflare — an infra-team dependency with
    lead time. This is now the main remaining unknown on the critical path.
+   Note: the nested `*.atelier.artsy.dev` wildcard-of-a-subdomain isn't covered
+   by Cloudflare's free Universal SSL (confirmed during the PoC), so sites
+   currently live at the flat `<slug>.artsy.dev` instead. Returning to the
+   nested scheme requires either Cloudflare's Advanced Certificate Manager
+   add-on (~$10/mo, plus resolving the CSR-access permission wall hit during
+   the PoC) or another path to a wildcard-of-a-subdomain cert — not blocking
+   v1, since `atelier.artsy.dev` (the app) and `*.atelier.artsy.dev` (sites)
+   are distinct DNS names that don't collide with the flat scheme.
 2. **Origin lock is mandatory (not hardening).** Hosted sites are internal-
    only, but CloudFront is reachable at its public `*.cloudfront.net` URL.
    Without a Cloudflare-injected secret header enforced at CloudFront/WAF,
