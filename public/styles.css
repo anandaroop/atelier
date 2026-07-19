@@ -11,7 +11,9 @@ body {
   color: white;
   font-family: "ll-unica77", monospace;
   /* fade the image toward black; raise/lower the alphas to taste */
-  background-image: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.5)), url(atelier-crop.jpg);
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.5)),
+    url(atelier-crop.webp);
   background-size: cover;
   background-position: center;
   transition: box-shadow 0.15s ease;
