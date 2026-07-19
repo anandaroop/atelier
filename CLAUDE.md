@@ -55,6 +55,7 @@ Simple, simple, simple!
 
 Work is tracked as GitHub Issues on the [project board](https://github.com/users/anandaroop/projects/7) project, not in local docs.
 
+- Use `gh project` to interact with projects
 - Use the `chore` label for non-code tasks, and assign them to your developer
 - Use `epic` field to group related tasks. Epics follow a `00 Name` zero-padded naming convention
 
