@@ -7,8 +7,8 @@ description: Learn the current state of the project.
 
 Gather context on the current state of the project.
 
-Repo: https://github.com/anandaroop/atelier
-Project: https://github.com/users/anandaroop/projects/7
+Repo: https://github.com/artsy/atelier
+Project: https://github.com/orgs/artsy/projects/10
 
 ## Github project
 

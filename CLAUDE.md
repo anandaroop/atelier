@@ -53,7 +53,7 @@ Simple, simple, simple!
 
 ### Project board
 
-Work is tracked as GitHub Issues on the [project board](https://github.com/users/anandaroop/projects/7) project, not in local docs.
+Work is tracked as GitHub Issues on the [project board](https://github.com/orgs/artsy/projects/10) project, not in local docs.
 
 - Use `gh project` to interact with projects
 - Use the `chore` label for non-code tasks, and assign them to your developer
@@ -74,5 +74,5 @@ Work is tracked as GitHub Issues on the [project board](https://github.com/users
   down, and the original design conversation) — background only, superseded
   by the docs above
 - Task tracking lives in the
-  [Atelier GitHub project](https://github.com/users/anandaroop/projects/7),
+  [Atelier GitHub project](https://github.com/orgs/artsy/projects/10),
   not in these docs
