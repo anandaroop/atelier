@@ -3,7 +3,7 @@
 > [!WARNING]
 >
 > **Historical / seed document.** This is the shape-and-architecture doc that
-> seeded the initial [GitHub project](https://github.com/users/anandaroop/projects/7)
+> seeded the initial [GitHub project](https://github.com/orgs/artsy/projects/10)
 > issues and epics for Milestone 1. The project board is now the source of
 > truth for task status — this doc is kept for the design rationale behind
 > that seed (why things are scoped/sequenced the way they are), not as a live
@@ -155,7 +155,7 @@ uploader/time comes from S3 object metadata (per ARCHITECTURE.md §3).
 
 ## Task tracking
 
-Tasks are tracked as issues in the [Atelier GitHub project](https://github.com/users/anandaroop/projects/7),
+Tasks are tracked as issues in the [Atelier GitHub project](https://github.com/orgs/artsy/projects/10),
 organized under epics **01 Uploads — app** and **02 Uploads — deploy**. That
 project (not this file) is the source of truth for what's done and what's next.
 
