@@ -216,11 +216,14 @@
 
   // Whole page is the drop target, but click-to-browse is scoped to the
   // tagline/status area (not the giant title) so clicking elsewhere on the
-  // page doesn't surprise the user with a file picker. Excludes interactive
-  // elements the status area renders (the live-site link, the overwrite
-  // confirm buttons).
+  // page doesn't surprise the user with a file picker. Excludes the status
+  // area entirely once it has content (busy/error/confirm/success text)
+  // since that's informational/interactive, not an upload prompt. Relies on
+  // the status click listener below calling stopPropagation() — it may
+  // clear #status's contents (detaching event.target) before this handler
+  // runs, which would otherwise make a closest("#status") check here fail.
   clickTarget.addEventListener("click", (event) => {
-    if (uploading || event.target.closest("a, button")) {
+    if (uploading || event.target.closest("#status")) {
       return;
     }
     fileInput.click();
@@ -235,6 +238,7 @@
   });
 
   statusEl.addEventListener("click", (event) => {
+    event.stopPropagation();
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action || !pendingFormData) {
       return;
