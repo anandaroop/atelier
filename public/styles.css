@@ -56,21 +56,21 @@ body.drag-active {
 
 .click-target {
   display: inline-block;
-  cursor: pointer;
-  padding: 1rem 2rem;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0);
-  transition: background 0.15s ease;
-}
-
-.click-target:hover {
-  background: rgba(255, 255, 255, 0.1);
 }
 
 .tagline {
   font-weight: 700;
   font-size: 2rem;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0);
   text-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.click-target:hover .tagline {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .status {
@@ -95,6 +95,7 @@ body.drag-active {
   color: inherit;
   text-decoration: underline;
   text-decoration-style: dotted;
+  cursor: pointer;
 }
 
 .status .link-btn {
