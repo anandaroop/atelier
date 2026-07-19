@@ -65,16 +65,14 @@ Work is tracked as GitHub Issues on the [project board](https://github.com/users
 
 ## Further reading
 
-- [docs/SUMMARY.md](docs/SUMMARY.md) — executive summary, current status vs.
-  target design
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the target v1 architecture
   and stack
-- [docs/POC.md](docs/POC.md) / [docs/SETUP.md](docs/SETUP.md) /
-  [docs/TEARDOWN.md](docs/TEARDOWN.md) — the serving-layer PoC: what to build,
-  what was actually built (with deviations), and how to tear it down
-- [docs/PLAN.md](docs/PLAN.md) — shape & architecture for the current
-  milestone (the upload app)
+- [docs/PLAN.md](docs/PLAN.md) — shape & architecture that seeded the
+  upload-app milestone; historical rationale, not a live spec
+- [docs/hackathon-poc/](docs/hackathon-poc/) — quarantined docs from the
+  serving-layer PoC (what to build, what was actually built, how to tear it
+  down, and the original design conversation) — background only, superseded
+  by the docs above
 - Task tracking lives in the
   [Atelier GitHub project](https://github.com/users/anandaroop/projects/7),
   not in these docs
-- docs/CONVERSATION.md — how we arrived at the initial design, for background

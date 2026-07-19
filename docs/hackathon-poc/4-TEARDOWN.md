@@ -1,7 +1,7 @@
 # Atelier PoC — Teardown
 
 Full cleanup if the PoC doesn't pan out. Covers both the live `*.artsy.dev`
-setup ([SETUP.md](SETUP.md)) and the leftover artifacts from the abandoned
+setup ([3-SETUP.md](3-SETUP.md)) and the leftover artifacts from the abandoned
 `*.atelier.artsy.dev` detour. Order matters — CloudFront resources can't be
 deleted while still referenced by something else.
 
