@@ -31,10 +31,12 @@
     -->
     <button id="browse-trigger" class="browse-trigger" type="button">Choose a zip file</button>
 
-    <div id="branding" class="branding">
+    <div class="branding">
       <div class="title">The Atelier</div>
-      <div class="tagline">A place to hang your html sketches. Drop a zip, get a live site.</div>
-      <div id="status" class="status" aria-live="polite" hidden></div>
+      <div id="click-target" class="click-target">
+        <div class="tagline">A place to hang your html sketches. Drop a zip, get a live site.</div>
+        <div id="status" class="status" aria-live="polite" hidden></div>
+      </div>
     </div>
 
     <input id="file-input" type="file" accept=".zip,application/zip" hidden />
