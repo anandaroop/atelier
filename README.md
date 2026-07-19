@@ -40,10 +40,11 @@ Apart from S3 storage, the remaining components are:
 
 - **Serving site content**: handled by Cloudfront
 - **Uploading site content**: handled by this project, `artsy/atelier`
-- **Protecting those sites**: (TODO) handled by Cloudflare Access
+- **Access control**: (TODO) handled by Cloudflare Access
 
 Each piece is described below.
 
+---
 ### Serving site content
 
 - The `artsy-atelier` bucket itself has **no public access**, instead…
@@ -56,6 +57,7 @@ Each piece is described below.
 
 Note that this setup is actually all it takes to serve content out of that bucket to a custom `*.artsy.dev` subdomain. The remaining pieces are what make it easy and safe and for non-engineering users to interact with Atelier.
 
+---
 ### Uploading site content [WIP]
 
 - This repo is the Hackathon PoC that provides a simple **drop-zone based UI** that allows anyone to take some html/etc content, zip it up into an archive and drop it into Atelier
@@ -67,7 +69,8 @@ Note that this setup is actually all it takes to serve content out of that bucke
 
 This is currently a prototype-y Claude-crafted app with no build process and thus no ability to accommodate a more sophisticated React UI. If we want to evolve in that direction, we should feel free to completely replace the current upload app with something more suitable.
 
-### Access control for site content and uploading [TODO]
+---
+### Access control for both site content and uploading [TODO]
 
 - Still TODO but the idea is the Cloudflare Access serves as a simple gate in front of the static sites, as well as the upload app.
 
