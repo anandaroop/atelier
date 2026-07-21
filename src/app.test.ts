@@ -17,6 +17,14 @@ function buildApp() {
   });
 }
 
+describe("readiness endpoint", () => {
+  it("returns 200 at GET /health/ping", async () => {
+    const res = await request(buildApp()).get("/health/ping");
+
+    expect(res.status).toBe(200);
+  });
+});
+
 describe("static drop-zone UI", () => {
   it("serves the drop-zone page at GET /", async () => {
     const res = await request(buildApp()).get("/");

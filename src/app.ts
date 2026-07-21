@@ -29,6 +29,9 @@ export function createApp(deps: AppDeps): Express {
 
   const app = express();
 
+  app.get("/health/ping", (_req, res) => {
+    res.sendStatus(200);
+  });
   app.use(express.static(publicDir));
   app.use(createCheckRouter(s3Client, bucket));
   app.use(
