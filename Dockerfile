@@ -1,4 +1,4 @@
-FROM node:current-alpine
+FROM node:22.14.0-alpine
 
 # Add deploy user
 RUN adduser -D -g '' deploy
@@ -14,11 +14,14 @@ RUN apk update && apk add --no-cache --quiet \
   build-base \
   dumb-init
 
+# Enable Corepack so the project's pinned Yarn 4 is used
+RUN corepack enable
+
 # Install application dependencies
-COPY package.json yarn.lock ./
-COPY patches ./patches
-RUN yarn install --frozen-lockfile --quiet \
-  && yarn cache clean
+COPY package.json yarn.lock .yarnrc.yml ./
+# COPY patches ./patches
+RUN yarn install --immutable \
+  && rm -rf .yarn/cache
 
 # Copy application code
 COPY --chown=deploy:deploy . /app
