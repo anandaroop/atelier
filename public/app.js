@@ -5,7 +5,18 @@
   // tested source of truth (see their *.test.ts); if you change the
   // sanitization/validation rules here, update them (and their tests) too.
   const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-  const RESERVED_SLUGS = new Set(["atelier", "www", "api", "upload", "admin"]);
+  const RESERVED_SLUGS = new Set([
+    "atelier",
+    "atelier-staging",
+    "www",
+    "staging",
+    "api",
+    "api-staging",
+    "upload",
+    "upload-staging",
+    "admin",
+    "admin-staging",
+  ]);
 
   // Client-side heads-up only — mirrors the server's default
   // MAX_UPLOAD_BYTES (see .env.example). The server is authoritative and
