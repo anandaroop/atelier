@@ -181,7 +181,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/whitelist-source-range: "{{ externalIngressAllowSourceIP|join(',') }}"
 spec:
-  ingressClassName: nginx
+  ingressClassName: external-nginx
   rules:
   - host: {{ project_name }}.artsy.dev
     http:
