@@ -4,7 +4,7 @@
 
 Atelier is a new internal Artsy service for dead-simple hosting of static
 sites (typically LLM/agent-produced HTML/CSS/JS). A user drags a `.zip` onto a
-page, supplies a slug, and the site goes live at `<slug>.atelier.artsy.dev`
+page, supplies a slug, and the site goes live at `<slug>.artsy.dev`
 within seconds. Access to *everything* — the uploader and every hosted site —
 is gated to verified Artsy users; once in, anyone may overwrite any slug after
 confirming intent.
@@ -19,13 +19,16 @@ existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
 **`artsy.dev`** domain (isolated from `artsy.net` production cookies), and
 **SPA + MPA** support in v1.
 
-**Deviation from this document, as actually built:** the nested
-`*.atelier.artsy.dev` wildcard below hit a Cloudflare free-tier TLS limit
-during the PoC and was replaced with the flat `*.artsy.dev` — see
-[docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md) ("Abandoned detour")
-and risk #1 below for the plan to return to the nested design once the cert
-issue is resolved. Everything else on this page (CloudFront+S3, the upload
-app, Cloudflare Access) still reflects the live plan.
+**Decided: flat `*.artsy.dev` for hosted sites, not the nested
+`*.atelier.artsy.dev` originally sketched below.** The nested wildcard hit a
+Cloudflare free-tier TLS limit during the PoC (Cloudflare's free Universal SSL
+covers only one wildcard level) and was replaced with the flat `*.artsy.dev` —
+see [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md) ("Abandoned
+detour"). **Confirmed 2026-07-20: this is the permanent design, not a
+stopgap** — there is no plan to revisit the nested scheme. The diagram, DNS
+records, and CloudFront alternate domain name below are written for the flat
+scheme: `atelier.artsy.dev` (the app) and every `<slug>.artsy.dev` (a hosted
+site) are both single-level subdomains of the one `artsy.dev` zone.
 
 ## Architecture
 
@@ -35,7 +38,7 @@ app, Cloudflare Access) still reflects the live plan.
    ▼
  Cloudflare (DNS proxied, wildcard TLS, Access JWT)
    ├── atelier.artsy.dev            → origin: Node upload app (k8s via Hokusai)
-   └── *.atelier.artsy.dev          → origin: CloudFront distribution
+   └── *.artsy.dev                  → origin: CloudFront distribution
                                             │ CloudFront Function: Host → S3 prefix
                                             ▼
                                         S3  artsy-atelier  (private, OAC)
@@ -49,22 +52,25 @@ app, Cloudflare Access) still reflects the live plan.
   `unleash.artsy.net`), so this reuses a proven pattern and existing IdP wiring
   rather than introducing anything new.
 - One Cloudflare Access application covering **both** `atelier.artsy.dev` and
-  `*.atelier.artsy.dev`, policy = Artsy Google Workspace / IdP group. A single
+  `*.artsy.dev`, policy = Artsy Google Workspace / IdP group. A single
   Access JWT cookie is shared across the zone, so uploader and hosted sites are
   gated uniformly.
 - The Node upload app reads the authenticated user's email from the
   `Cf-Access-Authenticated-User-Email` header (validate the accompanying
   `Cf-Access-Jwt-Assertion` against Cloudflare's public keys). No separate
   login for the app.
-- Cloudflare provides wildcard TLS for `*.atelier.artsy.dev` automatically.
+- Cloudflare provides wildcard TLS for `*.artsy.dev` automatically (free
+  Universal SSL, since it's a single wildcard level).
 - DNS records (proxied / orange-cloud):
   - `atelier.artsy.dev` → the Node upload app origin.
-  - `*.atelier.artsy.dev` → the CloudFront distribution domain.
+  - `*.artsy.dev` → the CloudFront distribution domain.
+  - `www.artsy.dev`, `upload.artsy.dev` → redirect to `atelier.artsy.dev`
+    (Cloudflare Redirect Rule, not a proxied origin) — see risk #1.
 
 ### 2. Serving — CloudFront + S3, no server
 
 - **Single CloudFront distribution** with alternate domain name
-  `*.atelier.artsy.dev` and a wildcard ACM cert (must be in **us-east-1** for
+  `*.artsy.dev` and a wildcard ACM cert (must be in **us-east-1** for
   CloudFront).
 - **CloudFront Function** (viewer-request) does the host→prefix mapping and
   routing. It routes by URL *shape* (a viewer function has no network/async, so
@@ -219,26 +225,33 @@ certainly covered.
 Must be resolved before/at v1 — several affect the design or need infra
 coordination:
 
-1. **DNS ownership (critical path).** Domain is decided: **`artsy.dev`**
-   (registered but unused) — see the separate-domain rationale below. Standing
-   up the wildcard zone still needs wildcard DNS + wildcard ACM cert
-   (us-east-1) + a Cloudflare Access app over `*.atelier.artsy.dev`; the
-   `artsy.dev` zone must be added to Cloudflare — an infra-team dependency with
-   lead time. This is now the main remaining unknown on the critical path.
-   Note: the nested `*.atelier.artsy.dev` wildcard-of-a-subdomain isn't covered
-   by Cloudflare's free Universal SSL (confirmed during the PoC), so sites
-   currently live at the flat `<slug>.artsy.dev` instead. Returning to the
-   nested scheme requires either Cloudflare's Advanced Certificate Manager
-   add-on (~$10/mo, plus resolving the CSR-access permission wall hit during
-   the PoC) or another path to a wildcard-of-a-subdomain cert — not blocking
-   v1, since `atelier.artsy.dev` (the app) and `*.atelier.artsy.dev` (sites)
-   are distinct DNS names that don't collide with the flat scheme.
+1. **DNS ownership — zone delegation done; specific records aren't.** Domain is
+   decided: **`artsy.dev`** (registered but unused) — see the separate-domain
+   rationale below, serving every hosted site flat as `<slug>.artsy.dev` (the
+   originally-sketched nested `*.atelier.artsy.dev` is not coming back — see
+   the decision note in Context above). The `artsy.dev` zone is **already
+   delegated to Cloudflare nameservers** (a standing, one-time registrar-level
+   change made during the PoC — see
+   [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md); do not revert
+   it). What's left is just the records, not the zone:
+   - `atelier.artsy.dev` (proxied) → the Node upload app's origin — blocked on
+     the deploy epic landing (issue #13), since there's no k8s ingress/LB
+     target to point at yet.
+   - `*.artsy.dev` (proxied) → the CloudFront distribution, with a wildcard
+     ACM cert (us-east-1). Being a single wildcard level, this is covered by
+     Cloudflare's free Universal SSL — no Advanced Certificate Manager add-on
+     needed.
+   - `www.artsy.dev` and `upload.artsy.dev` → redirect (301) to
+     `atelier.artsy.dev` via a Cloudflare Redirect Rule / Bulk Redirect List
+     (edge-only; no app or CloudFront-Function change needed). Both labels are
+     already on the reserved-slug list (`src/lib/slug.ts`), so they can never
+     be claimed by an upload.
 2. **Origin lock is mandatory (not hardening).** Hosted sites are internal-
    only, but CloudFront is reachable at its public `*.cloudfront.net` URL.
    Without a Cloudflare-injected secret header enforced at CloudFront/WAF,
    anyone with that URL bypasses Access and reads every site. Ship in v1.
 3. **CSRF on `/upload` via the shared Access cookie.** JS on any
-   `*.atelier.artsy.dev` site can POST to `atelier.artsy.dev/upload` with the
+   `<slug>.artsy.dev` site can POST to `atelier.artsy.dev/upload` with the
    visitor's Access cookie attached and overwrite other slugs. Require an
    Origin/Referer check or CSRF token from day one.
 4. **Cloudflare body-size limit caps site size.** Non-Enterprise plans cap
@@ -256,7 +269,7 @@ cookie and to *set* `.artsy.net` cookies (session fixation), with `SameSite=Lax`
 production cookies riding along on navigations. A separate registrable domain
 (`artsy.dev` is a different eTLD+1) severs that relationship entirely, so
 uploaded content cannot touch any `artsy.net` cookie. Bonus: the `.dev` TLD is
-HSTS-preloaded, so browsers force HTTPS. (Sites still share `.atelier.artsy.dev`
+HSTS-preloaded, so browsers force HTTPS. (Sites still share `.artsy.dev`
 with each other — accepted under the "anyone can overwrite anyone" model.)
 
 Noted, not launch-blocking: cross-subdomain trust / lookalike-slug phishing
@@ -282,7 +295,7 @@ for `.wasm`/`.svg`.
 1. **Upload happy path**: drop a small zip with `index.html` under slug
    `test-site`; confirm objects land under `s3://artsy-atelier/test-site/` with
    correct content-types.
-2. **Serve**: visit `https://test-site.atelier.artsy.dev/` (through Access) and
+2. **Serve**: visit `https://test-site.artsy.dev/` (through Access) and
    confirm `index.html` renders and relative assets load.
 3. **Overwrite = replace**: re-upload a zip that omits a previously-present
    file; confirm the stale file is gone from S3 and 404s when requested.
