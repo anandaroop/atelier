@@ -179,7 +179,7 @@ kind: Ingress
 metadata:
   name: {{ project_name }}
 spec:
-  ingressClassName: nginx
+  ingressClassName: external-nginx
   rules:
   - host: {{ project_name }}-staging.artsy.dev
     http:
