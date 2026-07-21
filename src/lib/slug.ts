@@ -9,7 +9,18 @@ export interface SlugValidationResult {
 
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-const RESERVED_SLUGS = new Set(["atelier", "www", "api", "upload", "admin"]);
+const RESERVED_SLUGS = new Set([
+  "atelier",
+  "atelier-staging",
+  "www",
+  "staging",
+  "api",
+  "api-staging",
+  "upload",
+  "upload-staging",
+  "admin",
+  "admin-staging",
+]);
 
 export function validateSlug(slug: string): SlugValidationResult {
   if (!SLUG_PATTERN.test(slug)) {
