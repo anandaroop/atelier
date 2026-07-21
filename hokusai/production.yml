@@ -183,7 +183,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: {{ project_name }}.artsy.net
+  - host: {{ project_name }}.artsy.dev
     http:
       paths:
       - path: /
