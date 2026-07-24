@@ -81,6 +81,10 @@ This is currently a prototype-y Claude-crafted app with no build process and thu
 
 - This ensures that Atelier remains a purely internally facing system, for both reads and writes.
 
+## Contributing
+
+_TODO — perhaps after a KS where we decide which quirky Hackathon-esque development practices to leave in place, and which ones to jettison in favor of standard practices._
+
 [@anandaroop]: https://github.com/anandaroop
 [@artsyjian]: https://github.com/artsyjian
 [ux-screencap]: docs/images/atelier-ux.gif
