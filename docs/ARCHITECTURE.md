@@ -1,11 +1,19 @@
 # Atelier — Architecture & Stack
 
+> [!NOTE]
+>
+> This is a verbose Claude-managed document meant more for agent consumption
+> than for humans.
+>
+> The bird's eye view of the architecture is described more succinctly in
+> the project README.
+
 ## Context
 
 Atelier is a new internal Artsy service for dead-simple hosting of static
 sites (typically LLM/agent-produced HTML/CSS/JS). A user drags a `.zip` onto a
 page, supplies a slug, and the site goes live at `<slug>.artsy.dev`
-within seconds. Access to *everything* — the uploader and every hosted site —
+within seconds. Access to _everything_ — the uploader and every hosted site —
 is gated to verified Artsy users; once in, anyone may overwrite any slug after
 confirming intent.
 
@@ -79,7 +87,7 @@ authentication.
   `*.artsy.dev` and a wildcard ACM cert (must be in **us-east-1** for
   CloudFront).
 - **CloudFront Function** (viewer-request) does the host→prefix mapping and
-  routing. It routes by URL *shape* (a viewer function has no network/async, so
+  routing. It routes by URL _shape_ (a viewer function has no network/async, so
   it cannot check whether an S3 key exists — shape is enough for both site
   types):
   - read the `Host` header, take the leftmost label as `slug`;
@@ -118,6 +126,7 @@ App Runner and Lambda are viable alternatives with different
 cost/ops trade-offs (see Cost & hosting).
 
 Endpoints:
+
 - `GET /` — drop-zone UI: a slug text field + a zip drop zone.
 - `GET /check?slug=<slug>` — returns whether the prefix already has content
   and, if so, **who last uploaded and when**, so the UI can show
@@ -156,7 +165,7 @@ Users iterate on a design with repeated uploads to the same slug, so stale
 assets are the main hazard — but we want to avoid asset fingerprinting and any
 build step. Strategy:
 
-- **Upload every object with `Cache-Control: no-cache`.** This does *not* mean
+- **Upload every object with `Cache-Control: no-cache`.** This does _not_ mean
   "don't cache" — it means CloudFront and the browser may store the object but
   **must revalidate** before reuse. Revalidation uses S3's `ETag`: unchanged
   assets return a tiny `304 Not Modified`, and after an overwrite the ETag
@@ -205,21 +214,21 @@ low.
 The **serving path is effectively free** at this scale and nowhere near any
 pricing cliff:
 
-| Component | Est. monthly |
-|---|---|
-| Cloudflare Access | ~$0 marginal (already covers `unleash.artsy.net`) |
-| S3 storage + GETs | <$0.50 |
-| CloudFront requests + data-out | ~$2–6 |
-| CloudFront Functions / invalidations | <$0.10 |
+| Component                            | Est. monthly                                      |
+| ------------------------------------ | ------------------------------------------------- |
+| Cloudflare Access                    | ~$0 marginal (already covers `unleash.artsy.net`) |
+| S3 storage + GETs                    | <$0.50                                            |
+| CloudFront requests + data-out       | ~$2–6                                             |
+| CloudFront Functions / invalidations | <$0.10                                            |
 
 The real variable is **where the upload app runs** — it's traffic-independent,
 so this is a pure hosting/ops lever, not a scaling concern:
 
-| Upload-app host | Est. monthly | Notes |
-|---|---|---|
-| **Existing k8s via Hokusai (recommended)** | **~$0–5** | Fractional capacity on existing nodes; shared nginx ingress (no new LB); reuses team's deploy paradigm. Lowest cost + least new ops surface. Cluster is kOps-on-EC2 (`draco` prod, us-east-1); marginal cost is just fractional node capacity. |
-| AWS App Runner | ~$5–15 | Simplest standalone deploy, but bills a warm instance's provisioned memory regardless of load. |
-| AWS Lambda | <$2 | Scales to zero (uploads are infrequent); cheapest, but a different deploy model and needs presigned-upload/streaming to dodge payload limits. |
+| Upload-app host                            | Est. monthly | Notes                                                                                                                                                                                                                                          |
+| ------------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Existing k8s via Hokusai (recommended)** | **~$0–5**    | Fractional capacity on existing nodes; shared nginx ingress (no new LB); reuses team's deploy paradigm. Lowest cost + least new ops surface. Cluster is kOps-on-EC2 (`draco` prod, us-east-1); marginal cost is just fractional node capacity. |
+| AWS App Runner                             | ~$5–15       | Simplest standalone deploy, but bills a warm instance's provisioned memory regardless of load.                                                                                                                                                 |
+| AWS Lambda                                 | <$2          | Scales to zero (uploads are infrequent); cheapest, but a different deploy model and needs presigned-upload/streaming to dodge payload limits.                                                                                                  |
 
 **Bottom line: ~$5–15/month all-in, and as low as ~$5 on the existing k8s
 cluster via Hokusai.** Total cost is dominated by the upload app's hosting
@@ -274,8 +283,8 @@ coordination:
 
 **Why a separate domain (`artsy.dev`, not `*.atelier.artsy.net`).** Uploaded
 sites run arbitrary, LLM-authored JS. On `artsy.net` that JS would be
-*same-site with all of Artsy production* — able to read any `Domain=.artsy.net`
-cookie and to *set* `.artsy.net` cookies (session fixation), with `SameSite=Lax`
+_same-site with all of Artsy production_ — able to read any `Domain=.artsy.net`
+cookie and to _set_ `.artsy.net` cookies (session fixation), with `SameSite=Lax`
 production cookies riding along on navigations. A separate registrable domain
 (`artsy.dev` is a different eTLD+1) severs that relationship entirely, so
 uploaded content cannot touch any `artsy.net` cookie. Bonus: the `.dev` TLD is
@@ -313,7 +322,7 @@ for `.wasm`/`.svg`.
    warns with the previous uploader's email and timestamp (read from S3 object
    metadata) and requires confirmation.
 5. **Cache freshness**: change `index.html`, re-upload, and confirm the new
-   content appears on hard-*and*-normal reload (no fingerprinting); verify
+   content appears on hard-_and_-normal reload (no fingerprinting); verify
    objects carry `Cache-Control: no-cache` and responses show `ETag`/`304`
    revalidation.
 6. **Auth gate**: hit both `atelier.artsy.dev` and a site subdomain in an
