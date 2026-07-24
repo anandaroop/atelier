@@ -90,6 +90,18 @@
     return String(value).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
   }
 
+  // Conventional "opens in a new tab" glyph (Feather/Heroicons "external
+  // link") — a box with an arrow escaping its corner. stroke="currentColor"
+  // so it inherits the surrounding link's color; sized via CSS (.status a
+  // svg) so it scales with the text instead of a fixed pixel size.
+  const EXTERNAL_LINK_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>' +
+    '<polyline points="15 3 21 3 21 9"></polyline>' +
+    '<line x1="10" y1="14" x2="21" y2="3"></line>' +
+    "</svg>";
+
   function showIdle() {
     statusEl.hidden = true;
     statusEl.className = "status";
@@ -192,7 +204,7 @@
     // post-upload success link) so checking it doesn't lose the pending
     // confirm state held in `pendingFormData`.
     statusEl.innerHTML = `
-      <span class="line">There is already a site at <a href="${href}" target="_blank" rel="noopener">${displayUrl}</a></span>
+      <span class="line">There is already a site at <a href="${href}" target="_blank" rel="noopener" title="Opens in a new tab">${displayUrl}${EXTERNAL_LINK_ICON}</a></span>
       <span class="line">Overwrite?
       <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
       /

@@ -105,6 +105,13 @@ body.drag-active {
   cursor: pointer;
 }
 
+.status a svg {
+  width: 0.7em;
+  height: 0.7em;
+  margin-left: 0.2em;
+  vertical-align: 0.05em;
+}
+
 .status .link-btn {
   background: none;
   border: none;
