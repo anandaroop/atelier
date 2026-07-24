@@ -85,6 +85,12 @@ body.drag-active {
   display: block;
 }
 
+.status .fine-print {
+  font-weight: 400;
+  font-size: 1.1rem;
+  opacity: 0.85;
+}
+
 .status.error,
 .status.confirm {
   color: #ffd166;

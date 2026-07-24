@@ -115,14 +115,83 @@
     statusEl.innerHTML = `<span class="line">Your site is live!</span><a class="url" href="${url}" target="_blank" rel="noopener">${url}</a>`;
   }
 
-  function showConfirm(slug, formData) {
+  // uploadedBy is best-effort provenance, not verified identity — it may be
+  // an Access email, a free-text form value, "anonymous", or absent
+  // entirely. Reduces an email to its local-part for a friendlier byline;
+  // passes anything else through as-is. Returns null when there's nothing
+  // worth displaying.
+  function formatUploader(value) {
+    if (!value || value === "anonymous") {
+      return null;
+    }
+    const atIndex = value.indexOf("@");
+    return atIndex > 0 ? value.slice(0, atIndex) : value;
+  }
+
+  // uploadedAt is a server-generated ISO timestamp (S3 object metadata) —
+  // safe to trust, but still validated since it may be absent on
+  // older/anonymous uploads. Returns null when it can't be parsed.
+  const RELATIVE_UNITS = [
+    ["year", 365 * 24 * 60 * 60],
+    ["month", 30 * 24 * 60 * 60],
+    ["day", 24 * 60 * 60],
+    ["hour", 60 * 60],
+    ["minute", 60],
+  ];
+  const relativeTimeFormatter =
+    typeof Intl !== "undefined" && Intl.RelativeTimeFormat
+      ? new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+      : null;
+
+  function formatRelativeTime(iso) {
+    if (!iso || !relativeTimeFormatter) {
+      return null;
+    }
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) {
+      return null;
+    }
+    const seconds = Math.round((Date.now() - then) / 1000);
+    if (seconds < 60) {
+      return relativeTimeFormatter.format(0, "minute"); // "now"-ish, but keep granularity coarse
+    }
+    for (const [unit, unitSeconds] of RELATIVE_UNITS) {
+      if (seconds >= unitSeconds) {
+        return relativeTimeFormatter.format(-Math.floor(seconds / unitSeconds), unit);
+      }
+    }
+    return relativeTimeFormatter.format(-Math.floor(seconds / 60), "minute");
+  }
+
+  // Builds "Uploaded by roop 37 minutes ago", degrading gracefully when
+  // either half is unavailable, or omitting the line entirely when neither
+  // is. uploadedBy is untrusted free text — escaped, never used raw.
+  function formatAttribution(uploadedBy, uploadedAt) {
+    const who = formatUploader(uploadedBy);
+    const when = formatRelativeTime(uploadedAt);
+    if (who && when) {
+      return `Uploaded by ${escapeHtml(who)} ${escapeHtml(when)}`;
+    }
+    if (who) {
+      return `Uploaded by ${escapeHtml(who)}`;
+    }
+    if (when) {
+      return `Uploaded ${escapeHtml(when)}`;
+    }
+    return null;
+  }
+
+  function showConfirm(slug, formData, uploadedBy, uploadedAt) {
     pendingFormData = formData;
     statusEl.hidden = false;
     statusEl.className = "status confirm";
+    const attribution = formatAttribution(uploadedBy, uploadedAt);
     // slug is client-derived from SLUG_PATTERN, so it can't contain
-    // markup — no escaping needed for it specifically.
+    // markup — no escaping needed for it specifically. attribution is
+    // already escaped by formatAttribution before it reaches this template.
     statusEl.innerHTML = `
       <span class="line">There is already a site at ${slug}.artsy.dev</span>
+      ${attribution ? `<span class="line fine-print">${attribution}</span>` : ""}
       <span class="line">Overwrite?
         <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
         /
@@ -143,7 +212,7 @@
       return;
     }
     if (status === 409) {
-      showConfirm(slug, formData);
+      showConfirm(slug, formData, data.uploadedBy, data.uploadedAt);
       return;
     }
     showError(data.error || "Something went wrong — please retry.");
