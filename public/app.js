@@ -90,6 +90,18 @@
     return String(value).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
   }
 
+  // Conventional "opens in a new tab" glyph (Feather/Heroicons "external
+  // link") — a box with an arrow escaping its corner. stroke="currentColor"
+  // so it inherits the surrounding link's color; sized via CSS (.status a
+  // svg) so it scales with the text instead of a fixed pixel size.
+  const EXTERNAL_LINK_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>' +
+    '<polyline points="15 3 21 3 21 9"></polyline>' +
+    '<line x1="10" y1="14" x2="21" y2="3"></line>' +
+    "</svg>";
+
   function showIdle() {
     statusEl.hidden = true;
     statusEl.className = "status";
@@ -112,22 +124,93 @@
     statusEl.hidden = false;
     statusEl.className = "status success";
     const url = escapeHtml(data.url);
-    statusEl.innerHTML = `<span class="line">Your site is live!</span><a class="url" href="${url}" target="_blank" rel="noopener">${url}</a>`;
+    statusEl.innerHTML = `<span class="line">Your site is live!</span><a class="url" href="${url}" target="_blank" rel="noopener" title="Opens in a new tab">${url}${EXTERNAL_LINK_ICON}</a>`;
   }
 
-  function showConfirm(slug, formData) {
+  // uploadedBy is best-effort provenance, not verified identity — it may be
+  // an Access email, a free-text form value, "anonymous", or absent
+  // entirely. Shown in full (not just the local-part): Access spans two
+  // Google Workspace domains (Artsy and Artnet), so two people can share a
+  // local-part, and the domain is what disambiguates them. Returns null
+  // when there's nothing worth displaying.
+  function formatUploader(value) {
+    return !value || value === "anonymous" ? null : value;
+  }
+
+  // uploadedAt is a server-generated ISO timestamp (S3 object metadata) —
+  // safe to trust, but still validated since it may be absent on
+  // older/anonymous uploads. Returns null when it can't be parsed.
+  const RELATIVE_UNITS = [
+    ["year", 365 * 24 * 60 * 60],
+    ["month", 30 * 24 * 60 * 60],
+    ["day", 24 * 60 * 60],
+    ["hour", 60 * 60],
+    ["minute", 60],
+  ];
+  const relativeTimeFormatter =
+    typeof Intl !== "undefined" && Intl.RelativeTimeFormat
+      ? new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+      : null;
+
+  function formatRelativeTime(iso) {
+    if (!iso || !relativeTimeFormatter) {
+      return null;
+    }
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) {
+      return null;
+    }
+    const seconds = Math.round((Date.now() - then) / 1000);
+    if (seconds < 60) {
+      return relativeTimeFormatter.format(0, "minute"); // "now"-ish, but keep granularity coarse
+    }
+    for (const [unit, unitSeconds] of RELATIVE_UNITS) {
+      if (seconds >= unitSeconds) {
+        return relativeTimeFormatter.format(-Math.floor(seconds / unitSeconds), unit);
+      }
+    }
+    return relativeTimeFormatter.format(-Math.floor(seconds / 60), "minute");
+  }
+
+  // Builds "Uploaded by roop 37 minutes ago", degrading gracefully when
+  // either half is unavailable, or omitting the line entirely when neither
+  // is. uploadedBy is untrusted free text — escaped, never used raw.
+  function formatAttribution(uploadedBy, uploadedAt) {
+    const who = formatUploader(uploadedBy);
+    const when = formatRelativeTime(uploadedAt);
+    if (who && when) {
+      return `uploaded by ${escapeHtml(who)} ${escapeHtml(when)}`;
+    }
+    if (who) {
+      return `uploaded by ${escapeHtml(who)}`;
+    }
+    if (when) {
+      return `uploaded ${escapeHtml(when)}`;
+    }
+    return null;
+  }
+
+  function showConfirm(slug, formData, uploadedBy, uploadedAt) {
     pendingFormData = formData;
     statusEl.hidden = false;
     statusEl.className = "status confirm";
+    const attribution = formatAttribution(uploadedBy, uploadedAt);
+    const displayUrl = escapeHtml(`${slug}.artsy.dev`);
+    const href = `https://${displayUrl}`;
     // slug is client-derived from SLUG_PATTERN, so it can't contain
-    // markup — no escaping needed for it specifically.
+    // markup — no escaping needed for it specifically. attribution is
+    // already escaped by formatAttribution before it reaches this template.
+    // target="_blank" opens the existing site in a new tab (like the
+    // post-upload success link) so checking it doesn't lose the pending
+    // confirm state held in `pendingFormData`.
     statusEl.innerHTML = `
-      <span class="line">There is already a site at ${slug}.artsy.dev</span>
+      <span class="line">There is already a site at <a href="${href}" target="_blank" rel="noopener" title="Opens in a new tab">${displayUrl}${EXTERNAL_LINK_ICON}</a></span>
       <span class="line">Overwrite?
-        <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
-        /
-        <button type="button" class="link-btn" data-action="confirm-no">No</button>
+      <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
+      /
+      <button type="button" class="link-btn" data-action="confirm-no">No</button>
       </span>
+      ${attribution ? `<span class="line fine-print">The current site was ${attribution}</span>` : ""}
     `;
   }
 
@@ -143,7 +226,7 @@
       return;
     }
     if (status === 409) {
-      showConfirm(slug, formData);
+      showConfirm(slug, formData, data.uploadedBy, data.uploadedAt);
       return;
     }
     showError(data.error || "Something went wrong — please retry.");

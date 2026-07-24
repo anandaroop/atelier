@@ -85,6 +85,13 @@ body.drag-active {
   display: block;
 }
 
+.status .fine-print {
+  margin-top: 1rem;
+  font-weight: 400;
+  font-size: 1.1rem;
+  opacity: 0.85;
+}
+
 .status.error,
 .status.confirm {
   color: #ffd166;
@@ -96,6 +103,13 @@ body.drag-active {
   text-decoration: underline;
   text-decoration-style: dotted;
   cursor: pointer;
+}
+
+.status a svg {
+  width: 0.7em;
+  height: 0.7em;
+  margin-left: 0.2em;
+  vertical-align: 0.05em;
 }
 
 .status .link-btn {
