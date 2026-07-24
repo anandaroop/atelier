@@ -1,19 +1,25 @@
 # Atelier — Architecture & Stack
 
+> [!NOTE]
+>
+> This is a verbose Claude-managed document meant more for agent consumption
+> than for humans.
+>
+> The bird's eye view of the architecture is described more succinctly in
+> the project README.
+
 ## Context
 
 Atelier is a new internal Artsy service for dead-simple hosting of static
 sites (typically LLM/agent-produced HTML/CSS/JS). A user drags a `.zip` onto a
 page, supplies a slug, and the site goes live at `<slug>.artsy.dev`
-within seconds. Access to *everything* — the uploader and every hosted site —
+within seconds. Access to _everything_ — the uploader and every hosted site —
 is gated to verified Artsy users; once in, anyone may overwrite any slug after
 confirming intent.
 
 This document fixes the v1 architecture and stack — the target design we build
-toward. Decisions below reflect the original sketch (now archived at
-[docs/hackathon-poc/initial-sketch-now-obsolete.png](hackathon-poc/initial-sketch-now-obsolete.png),
-superseded by the tldraw diagram in the [README](../README.md)) plus these
-confirmed choices: **Cloudflare Access** for auth, **CloudFront + S3**
+toward. Decisions below reflect the original sketch (superseded by the tldraw
+diagram in the [README](../README.md)) plus these confirmed choices: **Cloudflare Access** for auth, **CloudFront + S3**
 (serverless serving, no pass-through server) for delivery, **Node on the
 existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
 **`artsy.dev`** domain (isolated from `artsy.net` production cookies), and
@@ -22,9 +28,8 @@ existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
 **Decided: flat `*.artsy.dev` for hosted sites, not the nested
 `*.atelier.artsy.dev` originally sketched below.** The nested wildcard hit a
 Cloudflare free-tier TLS limit during the PoC (Cloudflare's free Universal SSL
-covers only one wildcard level) and was replaced with the flat `*.artsy.dev` —
-see [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md) ("Abandoned
-detour"). **Confirmed 2026-07-20: this is the permanent design, not a
+covers only one wildcard level) and was replaced with the flat `*.artsy.dev`
+(the "Abandoned detour" during the PoC's setup). **Confirmed 2026-07-20: this is the permanent design, not a
 stopgap** — there is no plan to revisit the nested scheme. The diagram, DNS
 records, and CloudFront alternate domain name below are written for the flat
 scheme: `atelier.artsy.dev` (the app) and every `<slug>.artsy.dev` (a hosted
@@ -47,6 +52,12 @@ site) are both single-level subdomains of the one `artsy.dev` zone.
 ```
 
 ### 1. Auth & DNS — Cloudflare Access
+
+**Status (2026-07-24):** Cloudflare Access is live and gates every
+`*.artsy.dev` subdomain (#52). The app-side piece below — reading and
+validating the JWT/email header — is not yet implemented; the upload app still
+treats any client-supplied uploader identity as unverified provenance, not
+authentication.
 
 - Cloudflare Access is **already in production at Artsy** (e.g.
   `unleash.artsy.net`), so this reuses a proven pattern and existing IdP wiring
@@ -73,7 +84,7 @@ site) are both single-level subdomains of the one `artsy.dev` zone.
   `*.artsy.dev` and a wildcard ACM cert (must be in **us-east-1** for
   CloudFront).
 - **CloudFront Function** (viewer-request) does the host→prefix mapping and
-  routing. It routes by URL *shape* (a viewer function has no network/async, so
+  routing. It routes by URL _shape_ (a viewer function has no network/async, so
   it cannot check whether an S3 key exists — shape is enough for both site
   types):
   - read the `Host` header, take the leftmost label as `slug`;
@@ -104,11 +115,15 @@ cluster `kubernetes-production-draco.artsy.systems` in us-east-1 — same region
 as S3/CloudFront. Because there's no EKS OIDC provider, **IRSA is not the path
 here**; instead give the pod a dedicated IAM policy scoped to write the
 `artsy-atelier` bucket only and deliver its credentials the way other Artsy
-apps do — via **Vault** (External Secrets Operator or the "Fortress" init
-container). App Runner and Lambda are viable alternatives with different
+apps do — via **Fortress**, the init-container secrets pattern (confirmed as
+the actual v1 mechanism, registered under project `atelier` for
+`production`/`staging` — see the `setenv` init container in
+`hokusai/production.yml`/`staging.yml` — not a placeholder for a later swap).
+App Runner and Lambda are viable alternatives with different
 cost/ops trade-offs (see Cost & hosting).
 
 Endpoints:
+
 - `GET /` — drop-zone UI: a slug text field + a zip drop zone.
 - `GET /check?slug=<slug>` — returns whether the prefix already has content
   and, if so, **who last uploaded and when**, so the UI can show
@@ -147,7 +162,7 @@ Users iterate on a design with repeated uploads to the same slug, so stale
 assets are the main hazard — but we want to avoid asset fingerprinting and any
 build step. Strategy:
 
-- **Upload every object with `Cache-Control: no-cache`.** This does *not* mean
+- **Upload every object with `Cache-Control: no-cache`.** This does _not_ mean
   "don't cache" — it means CloudFront and the browser may store the object but
   **must revalidate** before reuse. Revalidation uses S3's `ETag`: unchanged
   assets return a tiny `304 Not Modified`, and after an overwrite the ETag
@@ -196,21 +211,21 @@ low.
 The **serving path is effectively free** at this scale and nowhere near any
 pricing cliff:
 
-| Component | Est. monthly |
-|---|---|
-| Cloudflare Access | ~$0 marginal (already covers `unleash.artsy.net`) |
-| S3 storage + GETs | <$0.50 |
-| CloudFront requests + data-out | ~$2–6 |
-| CloudFront Functions / invalidations | <$0.10 |
+| Component                            | Est. monthly                                      |
+| ------------------------------------ | ------------------------------------------------- |
+| Cloudflare Access                    | ~$0 marginal (already covers `unleash.artsy.net`) |
+| S3 storage + GETs                    | <$0.50                                            |
+| CloudFront requests + data-out       | ~$2–6                                             |
+| CloudFront Functions / invalidations | <$0.10                                            |
 
 The real variable is **where the upload app runs** — it's traffic-independent,
 so this is a pure hosting/ops lever, not a scaling concern:
 
-| Upload-app host | Est. monthly | Notes |
-|---|---|---|
-| **Existing k8s via Hokusai (recommended)** | **~$0–5** | Fractional capacity on existing nodes; shared nginx ingress (no new LB); reuses team's deploy paradigm. Lowest cost + least new ops surface. Cluster is kOps-on-EC2 (`draco` prod, us-east-1); marginal cost is just fractional node capacity. |
-| AWS App Runner | ~$5–15 | Simplest standalone deploy, but bills a warm instance's provisioned memory regardless of load. |
-| AWS Lambda | <$2 | Scales to zero (uploads are infrequent); cheapest, but a different deploy model and needs presigned-upload/streaming to dodge payload limits. |
+| Upload-app host                            | Est. monthly | Notes                                                                                                                                                                                                                                          |
+| ------------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Existing k8s via Hokusai (recommended)** | **~$0–5**    | Fractional capacity on existing nodes; shared nginx ingress (no new LB); reuses team's deploy paradigm. Lowest cost + least new ops surface. Cluster is kOps-on-EC2 (`draco` prod, us-east-1); marginal cost is just fractional node capacity. |
+| AWS App Runner                             | ~$5–15       | Simplest standalone deploy, but bills a warm instance's provisioned memory regardless of load.                                                                                                                                                 |
+| AWS Lambda                                 | <$2          | Scales to zero (uploads are infrequent); cheapest, but a different deploy model and needs presigned-upload/streaming to dodge payload limits.                                                                                                  |
 
 **Bottom line: ~$5–15/month all-in, and as low as ~$5 on the existing k8s
 cluster via Hokusai.** Total cost is dominated by the upload app's hosting
@@ -225,18 +240,15 @@ certainly covered.
 Must be resolved before/at v1 — several affect the design or need infra
 coordination:
 
-1. **DNS ownership — zone delegation done; specific records aren't.** Domain is
-   decided: **`artsy.dev`** (registered but unused) — see the separate-domain
+1. **Resolved: DNS.** Domain is **`artsy.dev`** — see the separate-domain
    rationale below, serving every hosted site flat as `<slug>.artsy.dev` (the
    originally-sketched nested `*.atelier.artsy.dev` is not coming back — see
    the decision note in Context above). The `artsy.dev` zone is **already
    delegated to Cloudflare nameservers** (a standing, one-time registrar-level
-   change made during the PoC — see
-   [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md); do not revert
-   it). What's left is just the records, not the zone:
-   - `atelier.artsy.dev` (proxied) → the Node upload app's origin — blocked on
-     the deploy epic landing (issue #13), since there's no k8s ingress/LB
-     target to point at yet.
+   change made during the PoC; do not revert it), and all the records are now
+   live:
+   - `atelier.artsy.dev` (proxied) → the deployed Node upload app's k8s
+     ingress, resolving and serving through Access.
    - `*.artsy.dev` (proxied) → the CloudFront distribution, with a wildcard
      ACM cert (us-east-1). Being a single wildcard level, this is covered by
      Cloudflare's free Universal SSL — no Advanced Certificate Manager add-on
@@ -256,7 +268,10 @@ coordination:
    Origin/Referer check or CSRF token from day one.
 4. **Cloudflare body-size limit caps site size.** Non-Enterprise plans cap
    request bodies (~100 MB) and fail at the edge. Confirm Artsy's plan, or
-   switch to presigned direct-to-S3 zip upload.
+   switch to presigned direct-to-S3 zip upload. Separately, the k8s ingress
+   itself hit its own lower-layer default (1 MB, well under the app's 50 MB
+   `MAX_UPLOAD_BYTES`), causing large uploads to hang — a fix adding explicit
+   `proxy-body-size`/timeout annotations is in review as of 2026-07-24 (#69).
 5. **SPA fallback — decided: supported in v1.** Handled by the CloudFront
    Function's shape-based routing (see §2), no extra infra. Known limitation:
    MPA "clean URLs" without trailing slashes; upgrade to Lambda@Edge later if
@@ -264,8 +279,8 @@ coordination:
 
 **Why a separate domain (`artsy.dev`, not `*.atelier.artsy.net`).** Uploaded
 sites run arbitrary, LLM-authored JS. On `artsy.net` that JS would be
-*same-site with all of Artsy production* — able to read any `Domain=.artsy.net`
-cookie and to *set* `.artsy.net` cookies (session fixation), with `SameSite=Lax`
+_same-site with all of Artsy production_ — able to read any `Domain=.artsy.net`
+cookie and to _set_ `.artsy.net` cookies (session fixation), with `SameSite=Lax`
 production cookies riding along on navigations. A separate registrable domain
 (`artsy.dev` is a different eTLD+1) severs that relationship entirely, so
 uploaded content cannot touch any `artsy.net` cookie. Bonus: the `.dev` TLD is
@@ -303,7 +318,7 @@ for `.wasm`/`.svg`.
    warns with the previous uploader's email and timestamp (read from S3 object
    metadata) and requires confirmation.
 5. **Cache freshness**: change `index.html`, re-upload, and confirm the new
-   content appears on hard-*and*-normal reload (no fingerprinting); verify
+   content appears on hard-_and_-normal reload (no fingerprinting); verify
    objects carry `Cache-Control: no-cache` and responses show `ETag`/`304`
    revalidation.
 6. **Auth gate**: hit both `atelier.artsy.dev` and a site subdomain in an

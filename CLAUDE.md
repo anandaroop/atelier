@@ -2,7 +2,7 @@
 
 ## Overview
 
-Atelier will be a service internal to Artsy intended for dead-simple hosting of static html sites, such as might be produced by non-technical users with the assistance of LLMs and coding agents.
+Atelier is a service internal to Artsy and Artnet, intended for dead-simple hosting of static html sites, such as might be produced by non-technical users with the assistance of LLMs and coding agents. Or indeed any static html, hand-coded, vibe-coded, generated, etc.
 
 The inspirations are:
 
@@ -24,8 +24,8 @@ Simple, simple, simple!
 - All code is well-typed
 - All code tested via Jest, and introduced via TDD
 - All code linted via Biome, automatically on file-save and enforced at commit time
-- CI is deferred for now, while we stand up PoC. Run all quality checks before pushing.
-- Exception: an on-demand `@claude`-mention workflow (`.github/workflows/claude-review.yml`) runs a Claude Code review when someone comments `@claude` on a PR. It doesn't run on every push and isn't a substitute for the deferred CI.
+- CircleCI (`.circleci/config.yml`) runs `yarn test` on every push, and deploys via Hokusai: `main` to staging, `release` to production (behind a Horizon release block). It does not run lint or typecheck — run those locally before pushing.
+- Additionally: an on-demand `@claude`-mention workflow (`.github/workflows/claude-review.yml`) runs a Claude Code review when someone comments `@claude` on a PR. It doesn't run on every push and isn't a substitute for the CircleCI pipeline.
 
 ### Commit hygiene
 
@@ -69,10 +69,6 @@ Work is tracked as GitHub Issues on the [project board](https://github.com/orgs/
   and stack
 - [docs/PLAN.md](docs/PLAN.md) — shape & architecture that seeded the
   upload-app milestone; historical rationale, not a live spec
-- [docs/hackathon-poc/](docs/hackathon-poc/) — quarantined docs from the
-  serving-layer PoC (what to build, what was actually built, how to tear it
-  down, and the original design conversation) — background only, superseded
-  by the docs above
 - Task tracking lives in the
   [Atelier GitHub project](https://github.com/orgs/artsy/projects/10),
   not in these docs

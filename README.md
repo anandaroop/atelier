@@ -10,12 +10,14 @@ While the motivation was to accommodate the increasing number of vibecoded creat
 
 ## Meta
 
-- State: hackathon
-- Production: TODO (?)
-- Staging: TODO
+- State: production
+- Production: https://atelier.artsy.dev
+- Staging: https://atelier-staging.artsy.dev
 - GitHub: https://github.com/artsy/atelier/
 - Point People: [@anandaroop][], [@artsyjian][]
-- CI/Deploys: TODO
+- CI/Deploys: [CircleCI][circleci]; PRs merged into `main` are
+  automatically deployed to staging; PRs merged from `staging` into `release` are
+  automatically deployed to production. [Start a deploy...][github-release]
 
 ## Architecture
 
@@ -40,11 +42,12 @@ Apart from S3 storage, the remaining components are:
 
 - **Serving site content**: handled by Cloudfront
 - **Uploading site content**: handled by this project, `artsy/atelier`
-- **Access control**: (TODO) handled by Cloudflare Access
+- **Access control**: handled by Cloudflare Access
 
 Each piece is described below.
 
 ---
+
 ### Serving site content
 
 - The `artsy-atelier` bucket itself has **no public access**, instead…
@@ -58,11 +61,12 @@ Each piece is described below.
 Note that this setup is actually all it takes to serve content out of that bucket to a custom `*.artsy.dev` subdomain. The remaining pieces are what make it easy and safe and for non-engineering users to interact with Atelier.
 
 ---
-### Uploading site content [WIP]
 
-- This repo is the Hackathon PoC that provides a simple **drop-zone based UI** that allows anyone to take some html/etc content, zip it up into an archive and drop it into Atelier
+### Uploading site content
 
-- It is set up as a **vanilla Express** (v5) app that serves up:
+- This repo provides a simple **drop-zone based UI** that allows anyone to take some html/etc content, zip it up into an archive and drop it into Atelier
+
+- It is set up as a **vanilla Express** (v5) app, deployed to Artsy's k8s cluster via Hokusai, that serves up:
   - `GET /` — a **vanilla html page** with the hero image and drop zone UI
   - `POST /upload` — endpoint that takes a site name, a zip archive, and then **unpacks and stores the zip content** to the appropriately named subfolder inside the `artsy-atelier` S3 bucket
   - `GET /check` — endpoint that checks for subfolder existence to allow confirming of overwrites
@@ -70,14 +74,21 @@ Note that this setup is actually all it takes to serve content out of that bucke
 This is currently a prototype-y Claude-crafted app with no build process and thus no ability to accommodate a more sophisticated React UI. If we want to evolve in that direction, we should feel free to completely replace the current upload app with something more suitable.
 
 ---
-### Access control for both site content and uploading [TODO]
 
-- Still TODO but the idea is the Cloudflare Access serves as a simple gate in front of the static sites, as well as the upload app.
+### Access control for both site content and uploading
+
+- Cloudflare Access gates every `*.artsy.dev` subdomain behind single sign-on, covering both the static sites and the upload app.
 
 - This ensures that Atelier remains a purely internally facing system, for both reads and writes.
+
+## Contributing
+
+_TODO — perhaps after a KS where we decide which quirky Hackathon-esque development practices to leave in place, and which ones to jettison in favor of standard practices._
 
 [@anandaroop]: https://github.com/anandaroop
 [@artsyjian]: https://github.com/artsyjian
 [ux-screencap]: docs/images/atelier-ux.gif
 [architecture-diagram]: docs/images/atelier-architecture.png
 [tldraw-doc]: https://www.tldraw.com/p/jN9VTXW9jkSJsta6W8bd5?d=v125.179.2622.1522.page
+[circleci]: https://circleci.com/gh/artsy/atelier
+[github-release]: https://github.com/artsy/atelier/compare/release...staging?expand=1
