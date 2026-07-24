@@ -183,12 +183,16 @@
     statusEl.hidden = false;
     statusEl.className = "status confirm";
     const attribution = formatAttribution(uploadedBy, uploadedAt);
-    const url = escapeHtml(`${slug}.artsy.dev`);
+    const displayUrl = escapeHtml(`${slug}.artsy.dev`);
+    const href = `https://${displayUrl}`;
     // slug is client-derived from SLUG_PATTERN, so it can't contain
     // markup — no escaping needed for it specifically. attribution is
     // already escaped by formatAttribution before it reaches this template.
+    // target="_blank" opens the existing site in a new tab (like the
+    // post-upload success link) so checking it doesn't lose the pending
+    // confirm state held in `pendingFormData`.
     statusEl.innerHTML = `
-      <span class="line">There is already a site at ${url}</span>
+      <span class="line">There is already a site at <a href="${href}" target="_blank" rel="noopener">${displayUrl}</a></span>
       <span class="line">Overwrite?
       <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
       /
