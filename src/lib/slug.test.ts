@@ -32,7 +32,18 @@ describe("validateSlug", () => {
   });
 
   it("rejects reserved names", () => {
-    for (const reserved of ["atelier", "www", "api", "upload", "admin"]) {
+    for (const reserved of [
+      "atelier",
+      "atelier-staging",
+      "www",
+      "staging",
+      "api",
+      "api-staging",
+      "upload",
+      "upload-staging",
+      "admin",
+      "admin-staging",
+    ]) {
       const result = validateSlug(reserved);
       expect(result.valid).toBe(false);
       expect(result.error).toMatch(/reserved/i);
