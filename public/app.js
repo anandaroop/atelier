@@ -117,15 +117,12 @@
 
   // uploadedBy is best-effort provenance, not verified identity — it may be
   // an Access email, a free-text form value, "anonymous", or absent
-  // entirely. Reduces an email to its local-part for a friendlier byline;
-  // passes anything else through as-is. Returns null when there's nothing
-  // worth displaying.
+  // entirely. Shown in full (not just the local-part): Access spans two
+  // Google Workspace domains (Artsy and Artnet), so two people can share a
+  // local-part, and the domain is what disambiguates them. Returns null
+  // when there's nothing worth displaying.
   function formatUploader(value) {
-    if (!value || value === "anonymous") {
-      return null;
-    }
-    const atIndex = value.indexOf("@");
-    return atIndex > 0 ? value.slice(0, atIndex) : value;
+    return !value || value === "anonymous" ? null : value;
   }
 
   // uploadedAt is a server-generated ISO timestamp (S3 object metadata) —
