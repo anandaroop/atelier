@@ -167,13 +167,13 @@
     const who = formatUploader(uploadedBy);
     const when = formatRelativeTime(uploadedAt);
     if (who && when) {
-      return `Uploaded by ${escapeHtml(who)} ${escapeHtml(when)}`;
+      return `uploaded by ${escapeHtml(who)} ${escapeHtml(when)}`;
     }
     if (who) {
-      return `Uploaded by ${escapeHtml(who)}`;
+      return `uploaded by ${escapeHtml(who)}`;
     }
     if (when) {
-      return `Uploaded ${escapeHtml(when)}`;
+      return `uploaded ${escapeHtml(when)}`;
     }
     return null;
   }
@@ -183,17 +183,18 @@
     statusEl.hidden = false;
     statusEl.className = "status confirm";
     const attribution = formatAttribution(uploadedBy, uploadedAt);
+    const url = escapeHtml(`${slug}.artsy.dev`);
     // slug is client-derived from SLUG_PATTERN, so it can't contain
     // markup — no escaping needed for it specifically. attribution is
     // already escaped by formatAttribution before it reaches this template.
     statusEl.innerHTML = `
-      <span class="line">There is already a site at ${slug}.artsy.dev</span>
-      ${attribution ? `<span class="line fine-print">${attribution}</span>` : ""}
+      <span class="line">There is already a site at ${url}</span>
       <span class="line">Overwrite?
-        <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
-        /
-        <button type="button" class="link-btn" data-action="confirm-no">No</button>
+      <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
+      /
+      <button type="button" class="link-btn" data-action="confirm-no">No</button>
       </span>
+      ${attribution ? `<span class="line fine-print">The current site was ${attribution}</span>` : ""}
     `;
   }
 
