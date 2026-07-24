@@ -48,6 +48,12 @@ site) are both single-level subdomains of the one `artsy.dev` zone.
 
 ### 1. Auth & DNS — Cloudflare Access
 
+**Status (2026-07-24):** Cloudflare Access is live and gates every
+`*.artsy.dev` subdomain (#52). The app-side piece below — reading and
+validating the JWT/email header — is not yet implemented; the upload app still
+treats any client-supplied uploader identity as unverified provenance, not
+authentication.
+
 - Cloudflare Access is **already in production at Artsy** (e.g.
   `unleash.artsy.net`), so this reuses a proven pattern and existing IdP wiring
   rather than introducing anything new.
@@ -104,8 +110,11 @@ cluster `kubernetes-production-draco.artsy.systems` in us-east-1 — same region
 as S3/CloudFront. Because there's no EKS OIDC provider, **IRSA is not the path
 here**; instead give the pod a dedicated IAM policy scoped to write the
 `artsy-atelier` bucket only and deliver its credentials the way other Artsy
-apps do — via **Vault** (External Secrets Operator or the "Fortress" init
-container). App Runner and Lambda are viable alternatives with different
+apps do — via **Fortress**, the init-container secrets pattern (confirmed as
+the actual v1 mechanism, registered under project `atelier` for
+`production`/`staging` — see the `setenv` init container in
+`hokusai/production.yml`/`staging.yml` — not a placeholder for a later swap).
+App Runner and Lambda are viable alternatives with different
 cost/ops trade-offs (see Cost & hosting).
 
 Endpoints:
@@ -225,18 +234,16 @@ certainly covered.
 Must be resolved before/at v1 — several affect the design or need infra
 coordination:
 
-1. **DNS ownership — zone delegation done; specific records aren't.** Domain is
-   decided: **`artsy.dev`** (registered but unused) — see the separate-domain
+1. **Resolved: DNS.** Domain is **`artsy.dev`** — see the separate-domain
    rationale below, serving every hosted site flat as `<slug>.artsy.dev` (the
    originally-sketched nested `*.atelier.artsy.dev` is not coming back — see
    the decision note in Context above). The `artsy.dev` zone is **already
    delegated to Cloudflare nameservers** (a standing, one-time registrar-level
    change made during the PoC — see
    [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md); do not revert
-   it). What's left is just the records, not the zone:
-   - `atelier.artsy.dev` (proxied) → the Node upload app's origin — blocked on
-     the deploy epic landing (issue #13), since there's no k8s ingress/LB
-     target to point at yet.
+   it), and all the records are now live:
+   - `atelier.artsy.dev` (proxied) → the deployed Node upload app's k8s
+     ingress, resolving and serving through Access.
    - `*.artsy.dev` (proxied) → the CloudFront distribution, with a wildcard
      ACM cert (us-east-1). Being a single wildcard level, this is covered by
      Cloudflare's free Universal SSL — no Advanced Certificate Manager add-on
@@ -256,7 +263,10 @@ coordination:
    Origin/Referer check or CSRF token from day one.
 4. **Cloudflare body-size limit caps site size.** Non-Enterprise plans cap
    request bodies (~100 MB) and fail at the edge. Confirm Artsy's plan, or
-   switch to presigned direct-to-S3 zip upload.
+   switch to presigned direct-to-S3 zip upload. Separately, the k8s ingress
+   itself hit its own lower-layer default (1 MB, well under the app's 50 MB
+   `MAX_UPLOAD_BYTES`), causing large uploads to hang — a fix adding explicit
+   `proxy-body-size`/timeout annotations is in review as of 2026-07-24 (#69).
 5. **SPA fallback — decided: supported in v1.** Handled by the CloudFront
    Function's shape-based routing (see §2), no extra infra. Known limitation:
    MPA "clean URLs" without trailing slashes; upgrade to Lambda@Edge later if
