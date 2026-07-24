@@ -13,15 +13,14 @@
 
 The serving path is proven: a zip's contents placed under `s3://artsy-atelier/<slug>/`
 are served live at `https://<slug>.artsy.dev` via CloudFront + a viewer-request
-Function (see [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md)). But today
-the _only_ way to get content into S3 is hand-running `aws s3 cp`. This milestone
-builds the piece that makes Atelier usable by non-technical people: a **web app
-where you drop a zip, pick a slug, and the site goes live in seconds.**
+Function. But today the _only_ way to get content into S3 is hand-running
+`aws s3 cp`. This milestone builds the piece that makes Atelier usable by
+non-technical people: a **web app where you drop a zip, pick a slug, and the
+site goes live in seconds.**
 
-Per the just-swapped milestone order in
-[docs/hackathon-poc/2-POC-PLAN.md](hackathon-poc/2-POC-PLAN.md), **Uploads is now
-Milestone 1** and **Auth (Cloudflare Access) is Milestone 2**. So this app ships
-_without_ auth for now — accepted, hardened in M2.
+Per the just-swapped milestone order from the original PoC plan, **Uploads is
+now Milestone 1** and **Auth (Cloudflare Access) is Milestone 2**. So this app
+ships _without_ auth for now — accepted, hardened in M2.
 
 Confirmed decisions:
 

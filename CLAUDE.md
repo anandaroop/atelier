@@ -69,10 +69,6 @@ Work is tracked as GitHub Issues on the [project board](https://github.com/orgs/
   and stack
 - [docs/PLAN.md](docs/PLAN.md) — shape & architecture that seeded the
   upload-app milestone; historical rationale, not a live spec
-- [docs/hackathon-poc/](docs/hackathon-poc/) — quarantined docs from the
-  serving-layer PoC (what to build, what was actually built, how to tear it
-  down, and the original design conversation) — background only, superseded
-  by the docs above
 - Task tracking lives in the
   [Atelier GitHub project](https://github.com/orgs/artsy/projects/10),
   not in these docs

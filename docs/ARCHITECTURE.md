@@ -18,10 +18,8 @@ is gated to verified Artsy users; once in, anyone may overwrite any slug after
 confirming intent.
 
 This document fixes the v1 architecture and stack — the target design we build
-toward. Decisions below reflect the original sketch (now archived at
-[docs/hackathon-poc/initial-sketch-now-obsolete.png](hackathon-poc/initial-sketch-now-obsolete.png),
-superseded by the tldraw diagram in the [README](../README.md)) plus these
-confirmed choices: **Cloudflare Access** for auth, **CloudFront + S3**
+toward. Decisions below reflect the original sketch (superseded by the tldraw
+diagram in the [README](../README.md)) plus these confirmed choices: **Cloudflare Access** for auth, **CloudFront + S3**
 (serverless serving, no pass-through server) for delivery, **Node on the
 existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
 **`artsy.dev`** domain (isolated from `artsy.net` production cookies), and
@@ -30,9 +28,8 @@ existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
 **Decided: flat `*.artsy.dev` for hosted sites, not the nested
 `*.atelier.artsy.dev` originally sketched below.** The nested wildcard hit a
 Cloudflare free-tier TLS limit during the PoC (Cloudflare's free Universal SSL
-covers only one wildcard level) and was replaced with the flat `*.artsy.dev` —
-see [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md) ("Abandoned
-detour"). **Confirmed 2026-07-20: this is the permanent design, not a
+covers only one wildcard level) and was replaced with the flat `*.artsy.dev`
+(the "Abandoned detour" during the PoC's setup). **Confirmed 2026-07-20: this is the permanent design, not a
 stopgap** — there is no plan to revisit the nested scheme. The diagram, DNS
 records, and CloudFront alternate domain name below are written for the flat
 scheme: `atelier.artsy.dev` (the app) and every `<slug>.artsy.dev` (a hosted
@@ -248,9 +245,8 @@ coordination:
    originally-sketched nested `*.atelier.artsy.dev` is not coming back — see
    the decision note in Context above). The `artsy.dev` zone is **already
    delegated to Cloudflare nameservers** (a standing, one-time registrar-level
-   change made during the PoC — see
-   [docs/hackathon-poc/3-SETUP.md](hackathon-poc/3-SETUP.md); do not revert
-   it), and all the records are now live:
+   change made during the PoC; do not revert it), and all the records are now
+   live:
    - `atelier.artsy.dev` (proxied) → the deployed Node upload app's k8s
      ingress, resolving and serving through Access.
    - `*.artsy.dev` (proxied) → the CloudFront distribution, with a wildcard
