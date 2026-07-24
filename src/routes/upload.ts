@@ -23,9 +23,31 @@ interface ParsedUpload {
   confirm: boolean;
   uploadedBy?: string;
   entries?: ZipEntry[];
+  zipBytes: number;
 }
 
 const CONFIRM_TRUE_VALUES = new Set(["true", "1", "on"]);
+
+// Attached to parseUpload's rejection so the outer handler can still log a
+// slug/size-bearing line for uploads that fail before or during extraction
+// (e.g. zip-slip, oversize). Applied via Object.assign rather than a wrapper
+// class so `err instanceof ZipValidationError` still holds downstream.
+interface UploadContext {
+  slug: string;
+  zipBytes: number;
+}
+
+type UploadStatus = "upload" | "overwrite" | "conflict" | "reject";
+
+function logUpload(fields: {
+  slug: string;
+  bytes: number;
+  status: UploadStatus;
+  files?: number;
+  reason?: string;
+}): void {
+  console.log(JSON.stringify({ event: "upload", ...fields }));
+}
 
 /**
  * Streams the multipart request into its form fields plus the zip's
@@ -41,6 +63,7 @@ function parseUpload(req: Request, maxUploadBytes: number): Promise<ParsedUpload
     let uploadedBy: string | undefined;
     let entriesPromise: Promise<ZipEntry[]> | undefined;
     let fileStream: (NodeJS.ReadableStream & { truncated?: boolean }) | undefined;
+    let zipBytes = 0;
     let settled = false;
 
     const fail = (err: Error) => {
@@ -48,7 +71,8 @@ function parseUpload(req: Request, maxUploadBytes: number): Promise<ParsedUpload
         return;
       }
       settled = true;
-      reject(err);
+      const context: UploadContext = { slug, zipBytes };
+      reject(Object.assign(err, { uploadContext: context }));
     };
 
     bb.on("field", (name, value) => {
@@ -67,6 +91,14 @@ function parseUpload(req: Request, maxUploadBytes: number): Promise<ParsedUpload
         return;
       }
       fileStream = stream;
+      // Counts the raw (compressed) bytes of the zip as busboy streams it in
+      // — the size actually dropped, as opposed to extractZip's internal
+      // tally of uncompressed entry bytes. Attaching this listener doesn't
+      // steal chunks from extractZip's own pipe(); every "data" listener on a
+      // flowing stream receives the same chunks.
+      stream.on("data", (chunk: Buffer) => {
+        zipBytes += chunk.length;
+      });
       entriesPromise = extractZip(stream, maxUploadBytes);
     });
 
@@ -101,6 +133,7 @@ function parseUpload(req: Request, maxUploadBytes: number): Promise<ParsedUpload
         resolve({
           slug,
           confirm,
+          zipBytes,
           ...(uploadedBy !== undefined && { uploadedBy }),
           ...(entries !== undefined && { entries }),
         });
@@ -123,17 +156,36 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
 
       const validation = validateSlug(parsed.slug);
       if (!validation.valid) {
+        logUpload({
+          slug: parsed.slug,
+          bytes: parsed.zipBytes,
+          status: "reject",
+          ...(validation.error !== undefined && { reason: validation.error }),
+        });
         res.status(400).json({ error: validation.error });
         return;
       }
 
       if (!parsed.entries) {
+        logUpload({
+          slug: parsed.slug,
+          bytes: parsed.zipBytes,
+          status: "reject",
+          reason: "Missing zip file",
+        });
         res.status(400).json({ error: "Missing zip file" });
         return;
       }
 
       const { entries, aliasedIndexFrom } = normalizeZipEntries(parsed.entries);
       if (entries.length === 0) {
+        logUpload({
+          slug: parsed.slug,
+          bytes: parsed.zipBytes,
+          status: "reject",
+          files: entries.length,
+          reason: "Zip contains no usable files",
+        });
         res.status(400).json({ error: "Zip contains no usable files" });
         return;
       }
@@ -144,15 +196,27 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
       // only rejects the genuinely ambiguous cases: several root .html files
       // with no index.html among them, or none at all.
       if (!entries.some((entry) => entry.path === "index.html")) {
-        res.status(400).json({
-          error:
-            "Zip must contain an index.html at the root, or exactly one root-level .html file to use as one",
+        const reason =
+          "Zip must contain an index.html at the root, or exactly one root-level .html file to use as one";
+        logUpload({
+          slug: parsed.slug,
+          bytes: parsed.zipBytes,
+          status: "reject",
+          files: entries.length,
+          reason,
         });
+        res.status(400).json({ error: reason });
         return;
       }
 
       const existing = await headIndex(s3Client, bucket, parsed.slug);
       if (existing.exists && !parsed.confirm) {
+        logUpload({
+          slug: parsed.slug,
+          bytes: parsed.zipBytes,
+          status: "conflict",
+          files: entries.length,
+        });
         res.status(409).json({
           error: `Slug "${parsed.slug}" already exists`,
           ...(existing.uploadedBy !== undefined && { uploadedBy: existing.uploadedBy }),
@@ -160,6 +224,13 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         });
         return;
       }
+
+      logUpload({
+        slug: parsed.slug,
+        bytes: parsed.zipBytes,
+        status: existing.exists ? "overwrite" : "upload",
+        files: entries.length,
+      });
 
       // Only trustworthy once Cloudflare Access sits in front of this origin
       // and sets this header itself (Milestone 2, see docs/PLAN.md); until
@@ -204,6 +275,14 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
       });
     } catch (err) {
       if (err instanceof ZipValidationError) {
+        const context = (err as ZipValidationError & { uploadContext?: UploadContext })
+          .uploadContext;
+        logUpload({
+          slug: context?.slug ?? "",
+          bytes: context?.zipBytes ?? 0,
+          status: "reject",
+          reason: err.message,
+        });
         res.status(400).json({ error: err.message });
         return;
       }

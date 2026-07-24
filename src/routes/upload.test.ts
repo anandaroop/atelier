@@ -71,12 +71,14 @@ function buildApp(overrides: { maxUploadBytes?: number } = {}) {
   return app;
 }
 
+const DEFAULT_ZIP_BUFFER = Buffer.from("PK\x03\x04fake");
+
 // `null` (not the default `undefined`) means "send no zip file" — a default
 // parameter value is substituted even when a caller explicitly passes
 // `undefined`, so `undefined` can't be used as the "omit it" signal here.
 function postUpload(
   fields: Record<string, string> = {},
-  zipBuffer: Buffer | null = Buffer.from("PK\x03\x04fake"),
+  zipBuffer: Buffer | null = DEFAULT_ZIP_BUFFER,
 ) {
   let req = request(buildApp()).post("/upload");
   for (const [key, value] of Object.entries(fields)) {
@@ -88,13 +90,26 @@ function postUpload(
   return req;
 }
 
+let consoleLog: jest.SpiedFunction<typeof console.log>;
+
 beforeEach(() => {
   mockHeadIndex.mockReset().mockResolvedValue({ exists: false });
   mockDeletePrefix.mockReset().mockResolvedValue(0);
   mockPutFile.mockReset().mockResolvedValue(undefined);
   mockExtractZip.mockReset().mockImplementation(resolvingExtractZip(ZIP_ENTRIES));
   mockInvalidateSlug.mockReset().mockResolvedValue(undefined);
+  consoleLog = jest.spyOn(console, "log").mockImplementation();
 });
+
+afterEach(() => {
+  consoleLog.mockRestore();
+});
+
+// Every upload attempt logs one JSON line; grab and parse the most recent one.
+function lastUploadLog() {
+  const call = consoleLog.mock.calls.at(-1);
+  return call ? JSON.parse(call[0] as string) : undefined;
+}
 
 describe("POST /upload", () => {
   it("uploads a fresh slug and returns the live URL", async () => {
@@ -133,6 +148,13 @@ describe("POST /upload", () => {
       distributionId,
       "marketing-dashboard",
     );
+    expect(lastUploadLog()).toEqual({
+      event: "upload",
+      slug: "marketing-dashboard",
+      bytes: DEFAULT_ZIP_BUFFER.byteLength,
+      status: "upload",
+      files: 2,
+    });
   });
 
   it("strips a Finder-compressed wrapping folder and its __MACOSX junk before writing to S3", async () => {
@@ -256,6 +278,13 @@ describe("POST /upload", () => {
     });
     expect(mockDeletePrefix).not.toHaveBeenCalled();
     expect(mockPutFile).not.toHaveBeenCalled();
+    expect(lastUploadLog()).toEqual({
+      event: "upload",
+      slug: "marketing-dashboard",
+      bytes: DEFAULT_ZIP_BUFFER.byteLength,
+      status: "conflict",
+      files: 2,
+    });
   });
 
   it("replaces an existing slug when confirm is set", async () => {
@@ -270,6 +299,13 @@ describe("POST /upload", () => {
     expect(res.status).toBe(200);
     expect(mockDeletePrefix).toHaveBeenCalledWith(s3Client, bucket, "marketing-dashboard");
     expect(mockPutFile).toHaveBeenCalledTimes(2);
+    expect(lastUploadLog()).toEqual({
+      event: "upload",
+      slug: "marketing-dashboard",
+      bytes: DEFAULT_ZIP_BUFFER.byteLength,
+      status: "overwrite",
+      files: 2,
+    });
   });
 
   it("rejects an invalid slug with a 4xx and clear message", async () => {
@@ -284,6 +320,13 @@ describe("POST /upload", () => {
     expect(mockHeadIndex).not.toHaveBeenCalled();
     expect(mockDeletePrefix).not.toHaveBeenCalled();
     expect(mockPutFile).not.toHaveBeenCalled();
+    expect(lastUploadLog()).toEqual({
+      event: "upload",
+      slug: "Bad_Slug",
+      bytes: DEFAULT_ZIP_BUFFER.byteLength,
+      status: "reject",
+      reason: res.body.error,
+    });
   });
 
   it("rejects a reserved slug with a 4xx and clear message", async () => {
@@ -315,6 +358,13 @@ describe("POST /upload", () => {
     expect(res.body.error).toMatch(/escapes the archive root/i);
     expect(mockDeletePrefix).not.toHaveBeenCalled();
     expect(mockPutFile).not.toHaveBeenCalled();
+    expect(lastUploadLog()).toEqual({
+      event: "upload",
+      slug: "marketing-dashboard",
+      bytes: DEFAULT_ZIP_BUFFER.byteLength,
+      status: "reject",
+      reason: res.body.error,
+    });
   });
 
   it("surfaces busboy's fileSize truncation as a 400, not a 500", async () => {
