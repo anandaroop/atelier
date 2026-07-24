@@ -124,7 +124,7 @@
     statusEl.hidden = false;
     statusEl.className = "status success";
     const url = escapeHtml(data.url);
-    statusEl.innerHTML = `<span class="line">Your site is live!</span><a class="url" href="${url}" target="_blank" rel="noopener">${url}</a>`;
+    statusEl.innerHTML = `<span class="line">Your site is live!</span><a class="url" href="${url}" target="_blank" rel="noopener" title="Opens in a new tab">${url}${EXTERNAL_LINK_ICON}</a>`;
   }
 
   // uploadedBy is best-effort provenance, not verified identity — it may be
